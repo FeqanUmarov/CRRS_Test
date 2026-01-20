@@ -1,0 +1,144 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <title>CRRS</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{% static 'vendor/ol.css' %}">
+  <script src="{% static 'vendor/ol.js' %}" defer></script>
+
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script src="{% static 'js/app_toast.js' %}?v=1" defer></script>
+
+  <script>
+    window.APP = { ticket: "{{ ticket|default_if_none:''|escapejs }}" };
+  </script>
+
+
+  <script src="{% static 'js/tekuis-validator.js' %}?v=1" defer></script>
+  <script src="{% static 'js/rtLoading.js' %}?v=1" defer></script>
+
+  <script src="{% static 'js/main.js' %}?v=20250925.1" defer></script>
+  <script src="{% static 'js/layer_colors.js' %}?v=1" defer></script>
+  <script src="{% static 'js/attributes_panel.js' %}?v=1" defer></script>
+  <script src="{% static 'js/tekuis_erase.js' %}?v=1" defer></script>
+  <script src="{% static 'js/editvertex.js' %}?v=1" defer></script>
+  <!-- <script src="{% static 'js/tekuis_erase_with_transfer.js' %}?v=1" defer></script> -->
+  <script src="{% static 'js/tekuis-switch.js' %}?v=1" defer></script>
+  <script src="{% static 'js/rtVertexToolbar.js' %}?v=1" defer></script>
+  <script src="{% static 'js/rt_move.js' %}?v=20251024.1"></script>
+
+
+
+  <script src="{% static 'js/history.js' %}?v=1" defer></script>
+
+
+  <script>
+    window.RT_ICONS = {
+      info:         "{% static 'icons/images/info.png' %}",
+      erase:        "{% static 'icons/images/poygon-erase.svg' %}",
+      editVertices: "{% static 'icons/images/vertex.png' %}",
+      draw:         "{% static 'icons/images/edit.png' %}",
+      snap:         "{% static 'icons/images/snap_.png' %}",
+      deleteSel:    "{% static 'icons/images/delete_.png' %}",
+      clearAll:     "{% static 'icons/images/clean.png' %}",
+      save:         "{% static 'icons/images/save.png' %}",
+      move:         "{% static 'icons/images/move.png' %}"
+    };
+  </script>
+
+  <script>window.HISTORY_ICON = "{% static 'icons/images/clock.png' %}";</script>
+
+  <script>
+    window.HISTORY_STATUS_ICONS = {
+      attach: "{% static 'icons/images/attach-history.png' %}",
+      gis: "{% static 'icons/images/research-history.png' %}",
+      tekuis: "{% static 'icons/images/parcel-history.png' %}",
+    };
+  </script>
+
+  <style>
+    .right-tools{
+      position:absolute; right:16px; top:80px; z-index:999;
+      background:#fff; border-radius:5px; box-shadow:0 6px 18px rgba(0,0,0,.18);
+      padding:6px; display:flex; flex-direction:column; gap:8px;
+    }
+    .rt-btn{
+      width:44px; height:44px; border-radius:12px; border:none; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; background:#f8fafc;
+      transition:transform .08s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .rt-btn:hover{ transform:translateY(-1px); box-shadow:0 6px 14px rgba(2,6,23,.12); }
+    .rt-btn.active{ background:#e0f2fe; box-shadow:0 0 0 2px rgba(2,132,199,.35) inset; }
+    .rt-icon{ width:24px; height:24px; }
+
+    .kv{
+      display:grid; grid-template-columns: 180px 1fr; gap:6px 12px;
+      font-size:14px; line-height:1.35;
+    }
+    .kv .k{ color:#6b7280; }
+    .kv .v{ color:#111827; font-weight:500; word-break:break-all; }
+    .kv .sep{ grid-column:1/-1; height:1px; background:#e5e7eb; margin:6px 0; }
+    .kv .h{ grid-column:1/-1; font-size:12px; color:#374151; text-transform:uppercase; letter-spacing:.04em; margin-top:8px;}
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <aside class="sidebar">
+      <button class="tool-btn" data-panel="contents" title="Məlumat daxil et" aria-label="Məlumat daxil et">
+        <img class="tb-ico" src="{% static 'icons/images/upload.png' %}" alt="">
+        <span class="tb-label">Məlumat daxil et</span>
+      </button>
+
+      <button class="tool-btn" data-panel="symbology" title="Basemaps" aria-label="Basemaps">
+        <img class="tb-ico" src="{% static 'icons/images/basemap.png' %}" alt="">
+        <span class="tb-label">Basemaps</span>
+      </button>
+
+      <button class="tool-btn" data-panel="layers" title="Laylar" aria-label="Laylar">
+        <img class="tb-ico" src="{% static 'icons/images/layers.png' %}" alt="">
+        <span class="tb-label">Laylar</span>
+      </button>
+
+      <button class="tool-btn" data-panel="info" title="Məlumatlar" aria-label="Məlumatlar">
+        <img class="tb-ico" src="{% static 'icons/images/information.png' %}" alt="">
+        <span class="tb-label">Məlumatlar</span>
+      </button>
+
+
+      <button class="tool-btn" data-panel="attributes" title="Atribut məlumatları" aria-label="Atribut məlumatları">
+        <img class="tb-ico" src="{% static 'icons/images/att.png' %}" alt="">
+        <span class="tb-label">Atribut məlumatları</span>
+      </button>
+
+
+
+
+      <button id="sidebarToggle" class="sidebar-toggle" title="Genişləndir" aria-label="Sidebar toggle">»»»</button>
+    </aside>
+
+    <main class="workspace">
+      <div id="map" class="map"></div>
+      <div class="right-tools" id="rightTools"></div>
+
+      <section id="side-panel" class="side-panel" hidden aria-hidden="true">
+        <div id="panel-indicator" class="panel-indicator" hidden></div>
+
+        <div class="panel-header">
+          <span class="panel-title">Panel</span>
+          <button id="panel-close" class="panel-close" aria-label="Close">×</button>
+        </div>
+        <div class="panel-body"></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
