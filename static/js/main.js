@@ -125,8 +125,8 @@ async function onSaveTekuisClick(){
   }
 }
 
-const fetchTicketStatus = window.fetchTicketStatus;
-const applyEditPermissions = window.applyEditPermissions;
+const authFetchTicketStatus = window.fetchTicketStatus;
+const authApplyEditPermissions = window.applyEditPermissions;
 
 
 /* =========================
@@ -3884,7 +3884,7 @@ window.addEventListener('resize', () => {
 setBasemap('google');
 
 // Ticket statusunu yüklə və icazələri tətbiq et
-fetchTicketStatus();
+authFetchTicketStatus?.();
 
 // --- İlk yükləmədə qoşma layını və TEKUİS/NECAS-ı serverdən gətir
 (async () => {
