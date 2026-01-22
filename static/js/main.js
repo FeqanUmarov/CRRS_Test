@@ -529,52 +529,8 @@ function refreshNecasFromAttachIfAny(){
 
 
 // --- Uploaded layer-dən WKT + avtomatik buffer seçimi
-function composeLayerWKTAndSuggestBuffer(layer){
-  if (!layer || !layer.getSource) return { wkt:null, bufferMeters: 0 };
-
-  const feats = layer.getSource().getFeatures();
-  if (!feats || feats.length === 0) return { wkt:null, bufferMeters: 0 };
-
-  const polys = [], lines = [], points = [];
-  feats.forEach(f=>{
-    const g = f.getGeometry(); if (!g) return;
-    const t = g.getType();
-    if (t === 'Polygon'){
-      polys.push(g.clone().transform('EPSG:3857','EPSG:4326').getCoordinates());
-    } else if (t === 'MultiPolygon'){
-      const gm = g.clone().transform('EPSG:3857','EPSG:4326').getCoordinates();
-      gm.forEach(p=>polys.push(p));
-    } else if (t === 'LineString'){
-      lines.push(g.clone().transform('EPSG:3857','EPSG:4326').getCoordinates());
-    } else if (t === 'MultiLineString'){
-      const gl = g.clone().transform('EPSG:3857','EPSG:4326').getCoordinates();
-      gl.forEach(l=>lines.push(l));
-    } else if (t === 'Point'){
-      points.push(g.clone().transform('EPSG:3857','EPSG:4326').getCoordinates());
-    } else if (t === 'MultiPoint'){
-      const gp = g.clone().transform('EPSG:3857','EPSG:4326').getCoordinates();
-      gp.forEach(p=>points.push(p));
-    }
-  });
-
-  const wktWriterLocal = new ol.format.WKT();
-
-  // Prioritet: Polygon > Line > Point
-  if (polys.length > 0){
-    const mp = new ol.geom.MultiPolygon(polys);
-    return { wkt: wktWriterLocal.writeGeometry(mp, { decimals: 8 }), bufferMeters: 5 }; // sərhəd “snap” üçün kiçik buffer
-  }
-  if (lines.length > 0){
-    const ml = new ol.geom.MultiLineString(lines);
-    return { wkt: wktWriterLocal.writeGeometry(ml, { decimals: 8 }), bufferMeters: 8 }; // xətlər üçün defolt 8 m
-  }
-  if (points.length > 0){
-    const mp = new ol.geom.MultiPoint(points);
-    return { wkt: wktWriterLocal.writeGeometry(mp, { decimals: 8 }), bufferMeters: 12 }; // nöqtələr üçün 12 m
-  }
-
-  return { wkt:null, bufferMeters: 0 };
-}
+const composeLayerWKTAndSuggestBuffer = window.composeLayerWKTAndSuggestBuffer;
+const composeLayerMultiPolygonWKT = window.composeLayerMultiPolygonWKT;
 
 
 
@@ -2554,7 +2510,7 @@ function closeTopologyModal(){
 
 
   try { topoFocusSource.clear(true); } catch {}
-  try { topoErrorSource.clear(true); } catch {}
+  try { topoErrorSource?.clear(true); } catch {}
 
   const v = window._lastTopoValidation || {};
   const eff = computeEffective(v);
