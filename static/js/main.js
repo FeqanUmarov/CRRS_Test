@@ -529,8 +529,13 @@ function refreshNecasFromAttachIfAny(){
 
 
 // --- Uploaded layer-dən WKT + avtomatik buffer seçimi
-const composeLayerWKTAndSuggestBuffer = window.composeLayerWKTAndSuggestBuffer;
-const composeLayerMultiPolygonWKT = window.composeLayerMultiPolygonWKT;
+// var composeLayerWKTAndSuggestBuffer = window.composeLayerWKTAndSuggestBuffer;
+// var composeLayerMultiPolygonWKT = window.composeLayerMultiPolygonWKT;
+
+(() => {
+  const composeLayerWKTAndSuggestBuffer = window.composeLayerWKTAndSuggestBuffer;
+  const composeLayerMultiPolygonWKT = window.composeLayerMultiPolygonWKT;
+})();
 
 
 
