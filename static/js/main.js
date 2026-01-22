@@ -33,12 +33,8 @@ const authApplyEditPermissions = window.applyEditPermissions;
 
 
 // === Feature ownership map (feature → source) ===
-const FeatureOwner = new WeakMap();
-function trackFeatureOwnership(source){
-  if (!source) return;
-  source.on('addfeature',  e => { try { FeatureOwner.set(e.feature, source); } catch {} });
-  source.on('removefeature', e => { try { FeatureOwner.delete(e.feature); } catch {} });
-}
+const trackFeatureOwnership = window.FeatureOwnership?.trackFeatureOwnership;
+const getFeatureOwner = window.FeatureOwnership?.getOwner;
 
 
 /* =========================
@@ -1052,7 +1048,7 @@ function findVectorLayerAndSourceOfFeature(f){
   if (!f) return null;
 
   // 1) Əvvəlcə birbaşa ownership xəritəsindən götür
-  const ownedSrc = FeatureOwner.get(f);
+  const ownedSrc = getFeatureOwner?.(f);
   if (ownedSrc) {
     // Həmin source-u daşıyan layer-i tapırıq
     let ownedLayer = null;
@@ -2043,7 +2039,7 @@ function loadTekuisFromLS(){
       const selA = selectAny.getFeatures();
       const arr  = selA.getArray().slice();
       arr.forEach(f => {
-        if (FeatureOwner.get(f) === tekuisSource) { // bu feature əvvəl TEKUİS-dən idi
+        if (getFeatureOwner?.(f) === tekuisSource) { // bu feature əvvəl TEKUİS-dən idi
           selA.remove(f);
         }
       });
