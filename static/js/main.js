@@ -26,106 +26,6 @@ window.tv = TekuisValidator.init({
   metaId: (typeof window.META_ID !== 'undefined' ? window.META_ID : null)
 });
 
-// NEW: btnSaveTekuis klik handler-i (pre-check + save)
-const btnSaveTekuis = document.getElementById('btnSaveTekuis');
-
-if (btnSaveTekuis) {
-  btnSaveTekuis.addEventListener('click', onSaveTekuisClick);
-}
-
-// btnSaveTekuis klik handler-i (pre-check + save + həmişə overlay-i bağla)
-async function onSaveTekuisClick(){
-  // ✅ YENİ: Attributes panel məlumatlarını saxla
-  try {
-    if (window.AttributesPanel && typeof window.AttributesPanel.applyUIToSelectedFeature === 'function') {
-      window.AttributesPanel.applyUIToSelectedFeature();
-    }
-  } catch (e) {
-    console.warn('Attributes sync xətası:', e);
-  }
-
-  // --- SÜRƏTLİ PRE-CHECKLƏR (overlay açmadan) ---
-  if (!PAGE_TICKET) { showToast('Ticket tapılmadı.'); return; }
-
-  const features = tekuisSource.getFeatures();
-  if (!features || features.length === 0){
-    showToast('Yadda saxlamaq üçün TEKUİS obyektləri tapılmadı.');
-    return;
-  }
-
-  const gjFmt = new ol.format.GeoJSON();
-  const fc = gjFmt.writeFeaturesObject(features, {
-    featureProjection: 'EPSG:3857',
-    dataProjection: 'EPSG:4326'
-  });
-
-  // Dissolve edilmiş tək (Multi)Polygon göndərmə
-  if (fc.features.length === 1) {
-    const t = fc.features[0]?.geometry?.type || '';
-    if (t === 'Polygon' || t === 'MultiPolygon'){
-      showToast('Dissolve edilmiş tək (Multi)Polygon göndərilə bilməz. Parselləri ayrı feature kimi saxla.');
-      return;
-    }
-  }
-
-  // Artıq saxlanıbsa, POST etmə (overlay açmadan)
-  try{
-    const r0 = await fetch(`/api/tekuis/exists?ticket=${encodeURIComponent(PAGE_TICKET)}`, {
-      headers: { 'Accept':'application/json', 'X-Ticket': PAGE_TICKET }
-    });
-    if (r0.ok){
-      const j0 = await r0.json();
-      if (j0?.exists){
-        showToast('TEKUİS parsellər local bazada yadda saxlanılıb');
-        return;
-      }
-    }
-  }catch{ /* şəbəkə xətası olsa da POST-da tutulacaq */ }
-
-  // --- İNDİ OVERLAY-I AÇ VƏ HƏR HALDA BAĞLA ---
-  let hideLoading = () => {};
-  try{
-    hideLoading = (window.RTLoading ? RTLoading.show('Məlumat yadda saxlanır…') : () => {});
-
-    // 3) POST
-    const resp = await fetch('/api/tekuis/save', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCSRFToken(),
-        'X-Ticket': PAGE_TICKET,
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({ ticket: PAGE_TICKET, geojson: fc })
-    });
-
-    if (resp.status === 409) {
-      let msg = 'TEKUİS parsellər local bazada yadda saxlanılıb';
-      try { msg = (await resp.json())?.message || msg; } catch {}
-      showToast(msg);
-      return;
-    }
-
-    if (!resp.ok){
-      const txt = await resp.text().catch(()=> '');
-      showToast('Yadda saxlama xətası: ' + (txt || resp.status));
-      return;
-    }
-
-    const out = await resp.json();
-    if (out?.ok){
-      showToast(`Saxlandı: ${out.saved_count || 0} parsel`);
-    } else {
-      showToast(out?.error || 'Bilinməyən xəta');
-    }
-
-  }catch(e){
-    console.warn('Save TEKUIS error:', e);
-    showToast('Şəbəkə xətası');
-  }finally{
-    try { hideLoading(); } catch {}
-  }
-}
 
 const authFetchTicketStatus = window.fetchTicketStatus;
 const authApplyEditPermissions = window.applyEditPermissions;
@@ -147,6 +47,8 @@ function trackFeatureOwnership(source){
 const tekuisSource = new ol.source.Vector();
 
 trackFeatureOwnership(tekuisSource);
+
+window.setupTekuisSave?.({ tekuisSource, ticket: PAGE_TICKET });
 
 
 ['addfeature','removefeature','changefeature'].forEach(ev => {
@@ -419,45 +321,14 @@ function setInfoHighlight(feature) {
 /* =========================
    PANEL/INDIKATOR
    ========================= */
-const panelEl       = document.getElementById('side-panel');
-const panelTitleEl  = panelEl.querySelector('.panel-title');
-const panelBodyEl   = panelEl.querySelector('.panel-body');
-const panelCloseBtn = document.getElementById('panel-close');
-const indicatorEl   = document.getElementById('panel-indicator');
-const workspaceEl   = document.querySelector('.workspace');
-
-function openPanel(title, html){
-  panelTitleEl.textContent = title || 'Panel';
-  panelBodyEl.innerHTML = html || '';
-  panelEl.hidden = false;
-  void panelEl.offsetWidth;
-  panelEl.classList.add('open');
-  panelEl.setAttribute('aria-hidden', 'false');
-}
-function closePanel(){
-  stopDraw(true);
-  panelEl.classList.remove('open');
-  panelEl.setAttribute('aria-hidden', 'true');
-  const onEnd = (e) => {
-    if (e.propertyName === 'transform') {
-      panelEl.hidden = true;
-      panelEl.removeEventListener('transitionend', onEnd);
-    }
-  };
-  panelEl.addEventListener('transitionend', onEnd);
-  indicatorEl.hidden = true;
-  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-}
-panelCloseBtn.addEventListener('click', closePanel);
-
-function moveIndicatorToButton(btn){
-  const btnRect = btn.getBoundingClientRect();
-  const wsRect  = workspaceEl.getBoundingClientRect();
-  const top     = btnRect.top - wsRect.top;
-  indicatorEl.style.top    = `${top}px`;
-  indicatorEl.style.height = `${btnRect.height}px`;
-  indicatorEl.hidden = false;
-}
+const {
+  panelEl,
+  panelBodyEl,
+  indicatorEl,
+  openPanel,
+  closePanel,
+  moveIndicatorToButton
+} = window.PanelUI || {};
 
 /* =========================
    Lay idarəsi (import olunan laylar üçün)
