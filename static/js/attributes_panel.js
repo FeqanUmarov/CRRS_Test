@@ -350,24 +350,26 @@
   // ✅ YENİ: Panel dəyişəndə avtomatik sync
   let _lastRenderedPanel = null;
   const _originalOpenPanel = window.openPanel;
-
-  window.openPanel = function(title, html) {
-    if (_lastRenderedPanel === 'attributes' && title !== PANEL_TITLE) {
-      try {
-        if (window.AttributesPanel && typeof window.AttributesPanel.applyUIToSelectedFeature === 'function') {
-          window.AttributesPanel.applyUIToSelectedFeature();
-          if (typeof saveTekuisToLS === 'function') {
-            saveTekuisToLS();
+  if (typeof _originalOpenPanel === 'function') {
+    window.openPanel = function(title, html) {
+      if (_lastRenderedPanel === 'attributes' && title !== PANEL_TITLE) {
+        try {
+          if (window.AttributesPanel && typeof window.AttributesPanel.applyUIToSelectedFeature === 'function') {
+            window.AttributesPanel.applyUIToSelectedFeature();
+            if (typeof saveTekuisToLS === 'function') {
+              saveTekuisToLS();
+            }
           }
+        } catch (e) {
+          console.warn('Panel dəyişərkən attributes sync xətası:', e);
         }
-      } catch (e) {
-        console.warn('Panel dəyişərkən attributes sync xətası:', e);
       }
-    }
     
-    _lastRenderedPanel = (title === PANEL_TITLE) ? 'attributes' : null;
-    return _originalOpenPanel(title, html);
-  };
+
+      _lastRenderedPanel = (title === PANEL_TITLE) ? 'attributes' : null;
+      return _originalOpenPanel(title, html);
+    };
+  }
 
   // ==== [EXPORT] Main.js-dən çağırılmaq üçün public API ====
   window.AttributesPanel = window.AttributesPanel || {};
@@ -394,5 +396,6 @@
     console.log('✅ UI məlumatları feature-ə yazıldı:', props);
     return true;
   };
+
 
 })();

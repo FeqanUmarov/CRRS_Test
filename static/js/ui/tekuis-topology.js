@@ -9,6 +9,7 @@ const topoFocusSource = mapContext.topoFocusSource;
 const renderTopoErrorsOnMap = mapContext.renderTopoErrorsOnMap || window.renderTopoErrorsOnMap;
 const zoomAndHighlightTopoGeometry = mapContext.zoomAndHighlightTopoGeometry || window.zoomAndHighlightTopoGeometry;
 const saveTekuisToLocal = () => window.saveTekuisToLS?.();
+const clearTekuisCache = () => window.tekuisCache?.clearTekuisCache?.();
 
 // TEKUİS GeoJSON FeatureCollection (EPSG:4326) çıxarır
 function getTekuisFeatureCollection() {
@@ -793,4 +794,5 @@ async function tryValidateAndSaveTekuis(){
 }
 
 window.tryValidateAndSaveTekuis = tryValidateAndSaveTekuis;
+
 })();
