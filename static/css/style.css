@@ -232,8 +232,7 @@ body, button, input, select, textarea {
 }
 .sidebar .sidebar-toggle:hover{ background:#323846; }
 .sidebar.expanded .sidebar-toggle{
-  left:auto; right:8px; transform:none; width:auto; height:auto;
-  padding:6px 10px; border-radius:5px;
+  left:auto; right:8px; transform:none;
 }
 
 

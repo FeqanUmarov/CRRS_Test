@@ -18,6 +18,8 @@ const map = new ol.Map({
 const PAGE_TICKET = window.PAGE_TICKET || null;
 const basemapApi = window.setupBasemaps?.(map, googleImagery);
 window.basemapApi = basemapApi;
+const mapOverlays = window.mapOverlays || window.initMapOverlays?.(map);
+window.mapOverlays = mapOverlays;
 
 
 window.tv = TekuisValidator.init({
@@ -98,81 +100,14 @@ window.necasLayer = necasLayer;
 
 
 // === Info-highlight overlay (sabit seçim görünüşü) ===
-const infoHighlightSource = new ol.source.Vector();
-const infoHighlightLayer  = new ol.layer.Vector({
-  source: infoHighlightSource,
-  zIndex: 99,
-  style: (feature) => {
-    const t = feature.getGeometry().getType();
-    const sky = '#60a5fa'; // açıq mavi
-    if (/Point/i.test(t)) {
-      return new ol.style.Style({
-        image: new ol.style.Circle({
-          radius: 6,
-          fill:   new ol.style.Fill({ color: 'rgba(96,165,250,0.25)' }),
-          stroke: new ol.style.Stroke({ color: sky, width: 2 })
-        })
-      });
-    }
-    if (/LineString/i.test(t)) {
-      return [
-        new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(96,165,250,0.35)', width: 8 }) }),
-        new ol.style.Style({ stroke: new ol.style.Stroke({ color: sky, width: 3 }) })
-      ];
-    }
-    // Polygon / MultiPolygon
-    return [
-      new ol.style.Style({ fill:   new ol.style.Fill({ color: 'rgba(96,165,250,0.10)' }) }),
-      new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(96,165,250,0.35)', width: 6 }) }),
-      new ol.style.Style({ stroke: new ol.style.Stroke({ color: sky, width: 3 }) })
-    ];
-  }
-});
-// Overlay klikləri info axtarışına mane olmasın:
-infoHighlightLayer.set('infoIgnore', true);
-infoHighlightLayer.set('selectIgnore', true);
-map.addLayer(infoHighlightLayer);
-
-// === Topologiya xətası üçün QIRMIZI vurğulama layı ===
-const topoErrorSource = new ol.source.Vector();
-const topoErrorLayer  = new ol.layer.Vector({
-  source: topoErrorSource,
-  zIndex: 200,
-  style: (feature) => {
-    const t = feature.getGeometry().getType();
-    const red = '#ef4444';
-    if (/Point/i.test(t)) {
-      return new ol.style.Style({
-        image: new ol.style.Circle({
-          radius: 6,
-          fill:   new ol.style.Fill({ color: 'rgba(239,68,68,0.12)' }),
-          stroke: new ol.style.Stroke({ color: red, width: 3 })
-        })
-      });
-    }
-    if (/LineString/i.test(t)) {
-      return [
-        new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(239,68,68,0.35)', width: 8 }) }),
-        new ol.style.Style({ stroke: new ol.style.Stroke({ color: red, width: 3 }) })
-      ];
-    }
-    // Polygon / MultiPolygon
-    return [
-      new ol.style.Style({ fill:   new ol.style.Fill({ color: 'rgba(239,68,68,0.08)' }) }),
-      new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(239,68,68,0.35)', width: 6 }) }),
-      new ol.style.Style({ stroke: new ol.style.Stroke({ color: red, width: 3 }) })
-    ];
-  }
-});
-topoErrorLayer.set('infoIgnore',   true);
-topoErrorLayer.set('selectIgnore', true);
-map.addLayer(topoErrorLayer);
+const infoHighlightSource = mapOverlays?.infoHighlightSource;
+const topoErrorSource = mapOverlays?.topoErrorSource;
 
 
 // Xətaları xəritədə qırmızı layda göstərən helper
 function renderTopoErrorsOnMap(validation){
   try{
-    topoErrorSource.clear(true);
+    topoErrorSource?.clear(true);
     if (!validation) return;
     const gj = new ol.format.GeoJSON();
     const add = (arr=[]) => arr.forEach(it=>{
@@ -181,7 +116,7 @@ function renderTopoErrorsOnMap(validation){
         dataProjection: 'EPSG:4326',
         featureProjection: 'EPSG:3857'
       });
-      topoErrorSource.addFeature(new ol.Feature({ geometry: g }));
+      topoErrorSource?.addFeature(new ol.Feature({ geometry: g }));
     });
     add(validation.overlaps);
     add(validation.gaps);
@@ -306,10 +241,7 @@ function pulseTopoHighlight(feature, { duration = 950, hz = 3 } = {}){
 
 // Bir obyektin geometriyasını overlay-ə köçürüb “seçilmiş” göstər
 function setInfoHighlight(feature) {
-  infoHighlightSource.clear(true);
-  if (!feature || !feature.getGeometry) return;
-  const f = new ol.Feature({ geometry: feature.getGeometry().clone() }); // (EPSG:3857)
-  infoHighlightSource.addFeature(f);
+  mapOverlays?.setInfoHighlight?.(feature);
 }
 
 
@@ -602,69 +534,14 @@ const styleAttachDefault = window.styleAttachDefault;
 
 
 
-const lastUploadState = (window.lastUploadState ??= {
-  type: null,   // 'zip' | 'csvtxt'
-  file: null,   // File obyekti
-  crs:  null    // 'wgs84' | 'utm38' | 'utm39' (yalnız csv/txt üçün)
+const uploadHandlers = window.setupUploadHandlers?.({
+  ticket: PAGE_TICKET,
+  uploadLayerApi,
+  updateAllSaveButtons
 });
 
 
-async function uploadArchiveToBackend(file){
-
-  if (!window.EDIT_ALLOWED) {
-    Swal.fire('Diqqət', 'Bu əməliyyatları yalnız redaktə və ya qaralama rejimində edə bilərsiz!', 'warning');
-    return;
-  }
-
-  try {
-    const fd = new FormData();
-    fd.append('file', file);
-
-    fd.append('ticket', PAGE_TICKET || '');
-    const resp = await fetch('/api/upload-shp/', { method: 'POST', body: fd });
-    if (!resp.ok) {
-      throw new Error((await resp.text()) || `HTTP ${resp.status}`);
-    }
-    const geojson = await resp.json();
-    uploadLayerApi?.addGeoJSONToMap(geojson);
-    lastUploadState.type = 'zip';
-    lastUploadState.file = file;
-    lastUploadState.crs  = null; // SHP üçün koordinat sistemi DB-yə yazılmır
-    Swal.fire('OK', 'Shapefile xəritəyə əlavə olundu.', 'success');
-    updateAllSaveButtons();
-  } catch (err) {
-    console.error(err);
-    Swal.fire('Xəta', (err && err.message) || 'Yükləmə və ya çevirmə alınmadı.', 'error');
-  }
-}
-
-async function uploadPointsToBackend(file, crs){
-  if (!window.EDIT_ALLOWED) {
-    Swal.fire('Diqqət', 'Bu əməliyyatları yalnız redaktə və ya qaralama rejimində edə bilərsiz!', 'warning');
-    return;
-  }
-  try {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('crs', crs); // wgs84 | utm38 | utm39
-
-    fd.append('ticket', PAGE_TICKET || '');
-    const resp = await fetch('/api/upload-points/', { method: 'POST', body: fd });
-    if (!resp.ok) {
-      throw new Error((await resp.text()) || `HTTP ${resp.status}`);
-    }
-    const geojson = await resp.json();
-    uploadLayerApi?.addGeoJSONToMap(geojson);
-    lastUploadState.type = 'csvtxt';
-    lastUploadState.file = file;
-    lastUploadState.crs  = crs; // CSV/TXT üçün seçilən CRS saxlanır (attach zamanı DB-yə yazılacaq)
-    Swal.fire('OK', 'Koordinatlar xəritəyə əlavə olundu.', 'success');
-    updateAllSaveButtons();
-  } catch (err) {
-    console.error(err);
-    Swal.fire('Xəta', (err && err.message) || 'Yükləmə və ya çevirmə alınmadı.', 'error');
-  }
-}
+const lastUploadState = uploadHandlers?.lastUploadState || window.lastUploadState;
 
 /* =========================
    ATTACH upload helper (save zamanı çağırılır)
@@ -1718,138 +1595,20 @@ function updateSnapBtnUI(){
    “Məlumat daxil et” paneli
    ========================= */
 
-function renderDataPanel(){
-  if (!window.EDIT_ALLOWED) {
-    Swal.fire('Diqqət', 'Bu əməliyyatları yalnız redaktə və ya qaralama rejimində edə bilərsiz!', 'info');
-    return;
-  }
-  const html = `
-    <div class="tabs">
-      <div class="tab active" data-tab="shp">Shapefile (.zip)</div>
-      <div class="tab" data-tab="pts">Koordinatlar (.csv/.txt)</div>
-    </div>
-    <div id="tabContent"></div>
-  `;
-  openPanel('Məlumat daxil et', html);
-  const tabContent = document.getElementById('tabContent');
-  const tabs = panelBodyEl.querySelectorAll('.tab');
-
-  const loadTab = (which)=>{
-    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === which));
-    if (which === 'shp') {
-      tabContent.innerHTML = `
-        <div class="card">
-          <div class="upload-box" id="uploadBoxShp">
-            <div class="upload-title">Shapefile arxivi (.zip)</div>
-            <div class="hint">Arxivdə .shp, .shx, .dbf (və varsa .prj) olmalıdır</div>
-            <input type="file" id="shpArchiveInput" accept=".zip,.rar" hidden />
-            <button id="chooseArchiveBtn" class="btn">Arxiv seç və yüklə</button>
-            <div class="filename" id="archiveName"></div>
-          </div>
-        </div>
-      `;
-      const input   = document.getElementById('shpArchiveInput');
-      const choose  = document.getElementById('chooseArchiveBtn');
-      const box     = document.getElementById('uploadBoxShp');
-      const nameLbl = document.getElementById('archiveName');
-      const pick = (file)=>{
-        if (!file) return;
-        const low = file.name.toLowerCase();
-        if (!(low.endsWith('.zip') || low.endsWith('.rar'))) {
-          Swal.fire('Xəta', 'Zəhmət olmasa .zip və ya .rar shapefile arxivi seçin.', 'error');
-          return;
-        }
-        nameLbl.textContent = file.name;
-        uploadArchiveToBackend(file);
-      };
-      choose.addEventListener('click', () => input.click());
-      input.addEventListener('change', e => pick(e.target.files?.[0]));
-      box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('drag'); });
-      box.addEventListener('dragleave', () => box.classList.remove('drag'));
-      box.addEventListener('drop', e => { e.preventDefault(); box.classList.remove('drag'); pick(e.dataTransfer.files?.[0]); });
-    } else {
-      tabContent.innerHTML = `
-        <div class="card">
-          <div class="upload-title">Koordinatlar (.csv / .txt)</div>
-          <div class="small">CSV üçün ayırıcı avtomatik tanınır (<code>,</code> <code>;</code> <code>\\t</code> və s.). Başlıq yoxdursa ilk iki sütun X,Y kimi qəbul ediləcək.</div>
-          <div class="form-row">
-            <div class="radio-group" id="crsRadios">
-              <label class="radio"><input type="radio" name="crs" value="wgs84" checked> WGS84 (lon/lat)</label>
-              <label class="radio"><input type="radio" name="crs" value="utm38"> UTM 38N</label>
-              <label class="radio"><input type="radio" name="crs" value="utm39"> UTM 39N</label>
-            </div>
-          </div>
-          <div class="upload-box" id="uploadBoxCsv" style="margin-top:10px;">
-            <input type="file" id="pointsFileInput" accept=".csv,.txt" hidden />
-            <button id="choosePointsBtn" class="btn">Fayl seç və yüklə</button>
-            <div class="filename" id="pointsFileName"></div>
-          </div>
-        </div>
-      `;
-      const input   = document.getElementById('pointsFileInput');
-      const choose  = document.getElementById('choosePointsBtn');
-      const box     = document.getElementById('uploadBoxCsv');
-      const nameLbl = document.getElementById('pointsFileName');
-      const pick = (file)=>{
-        if (!file) return;
-        const low = file.name.toLowerCase();
-        if (!(low.endsWith('.csv') || low.endsWith('.txt'))) {
-          Swal.fire('Xəta', 'Zəhmət olmasa .csv və ya .txt faylı seçin.', 'error');
-          return;
-        }
-        nameLbl.textContent = file.name;
-        const crs = (document.querySelector('input[name="crs"]:checked')?.value) || 'wgs84';
-        uploadPointsToBackend(file, crs);
-      };
-      choose.addEventListener('click', () => input.click());
-      input.addEventListener('change', e => pick(e.target.files?.[0]));
-      box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('drag'); });
-      box.addEventListener('dragleave', () => box.classList.remove('drag'));
-      box.addEventListener('drop', e => { e.preventDefault(); box.classList.remove('drag'); pick(e.dataTransfer.files?.[0]); });
-    }
-  };
-  tabs.forEach(t => t.addEventListener('click', ()=> loadTab(t.dataset.tab)));
-  loadTab('shp');
-
-  const btnSave = document.getElementById('btnSaveDataPanel');
-  // Data panelində "Yadda saxla" → poliqon + (əgər fayl seçilibsə) attach
-  btnSave.addEventListener('click', () => saveSelected({ alsoAttach:true }));
-  updateAllSaveButtons();
-}
+const dataPanelApi = window.setupDataPanel?.({
+  openPanel,
+  panelBodyEl,
+  uploadHandlers
+});
 
 /* =========================
    Basemaps paneli
    ========================= */
-function renderBasemapsPanel(){
-  const thumbs = [
-    { key:'google',          title:'Imagery',          img:'https://mt1.google.com/vt/lyrs=s&x=18&y=12&z=5' },
-    { key:'imagery_hybrid',  title:'Imagery Hybrid',   img:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/5/12/18' },
-    { key:'streets',         title:'Streets',          img:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/5/12/18' },
-    { key:'osm',             title:'OSM',              img:'https://tile.openstreetmap.org/5/17/11.png' },
-    { key:'streets_night',   title:'Streets (Night)',  img:'https://a.basemaps.cartocdn.com/dark_all/5/17/11.png' },
-    { key:'topographic',     title:'Topographic',      img:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/5/12/18' },
-    { key:'navigation',      title:'Navigation',       img:'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Navigation_Charts/MapServer/tile/5/12/18' }
-  ];
-  const html = `
-    <div class="card">
-      <div class="upload-title" style="margin-bottom:10px;">Basemaps</div>
-      <div class="basemap-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:8px;">
-        ${thumbs.map(t => `
-          <div class="basemap-item" data-key="${t.key}"
-               style="border:2px solid transparent;border-radius:5px;overflow:hidden;cursor:pointer;background:#f3f4f6;">
-            <img src="${t.img}" alt="${t.title}" style="width:100%;height:110px;object-fit:cover;display:block;" />
-            <div class="bm-title" style="padding:8px 10px;font-size:13px;color:#111827;">${t.title}</div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-  openPanel('Basemaps', html);
-  panelBodyEl.querySelectorAll('.basemap-item').forEach(el=>{
-    el.addEventListener('click', ()=> window.basemapApi?.setBasemap(el.dataset.key));
-  });
-  window.basemapApi?.highlightSelectedBasemap();
-}
+const basemapsPanelApi = window.setupBasemapsPanel?.({
+  openPanel,
+  panelBodyEl,
+  basemapApi: window.basemapApi
+});
 
 
 
@@ -3485,7 +3244,7 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
     }
 
     if (which === 'contents') {
-      renderDataPanel();
+      dataPanelApi?.renderDataPanel?.();
     } else if (which === 'catalog') {
       Swal.fire('Məlumat', 'Redaktə alətləri indi sağdakı toolbar-dadır.', 'info');
     } else if (which === 'symbology') {
