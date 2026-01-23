@@ -385,8 +385,15 @@ function refreshTekuisFromAttachIfAny(force=false){
     return attachLayer ? fetchTekuisByGeomForLayer(attachLayer) : Promise.resolve();
   } else {
     tekuisSource.clear(true);
+    tekuisCount = 0;
     const lbl = document.getElementById('lblTekuisCount');
     if (lbl) lbl.textContent = '(0)';
+    if (document.getElementById('cardTekuis')){
+      applyNoDataCardState('cardTekuis', true, TEXT_TEKUIS_EMPTY, TEXT_TEKUIS_DEFAULT);
+    }
+    const chk = document.getElementById('chkTekuisLayer');
+    if (chk) chk.checked = false;
+    tekuisLayer?.setVisible(false);
     return Promise.resolve();
   }
 }
@@ -464,6 +471,13 @@ function refreshNecasFromAttachIfAny(){
     return attachLayer ? fetchNecasByGeomForLayer(attachLayer) : Promise.resolve();
   } else {
     necasSource.clear(true);
+    necasCount = 0;
+    if (document.getElementById('cardNecas')){
+      applyNoDataCardState('cardNecas', true, TEXT_NECAS_EMPTY, TEXT_NECAS_DEFAULT);
+    }
+    const chk = document.getElementById('chkNecasLayer');
+    if (chk) chk.checked = false;
+    necasLayer?.setVisible(false);
     return Promise.resolve();
   }
 }

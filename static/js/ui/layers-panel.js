@@ -186,8 +186,14 @@ function setupLayersPanel({
 
     const ticketLayerCount = getTicketLayerCount?.() ?? 0;
     const attachLayerCount = getAttachLayerCount?.() ?? 0;
-    const tekuisCount = getTekuisCount?.() ?? 0;
-    const necasCount = getNecasCount?.() ?? 0;
+    const tekuisSource = getTekuisSource?.();
+    const necasSource = getNecasSource?.();
+    const tekuisCount = getTekuisCount?.() ?? tekuisSource?.getFeatures?.().length ?? 0;
+    const necasCount = getNecasCount?.() ?? necasSource?.getFeatures?.().length ?? 0;
+
+    setTekuisCount?.(tekuisCount);
+    setNecasCount?.(necasCount);
+
 
     setCardDisabled('cardTicket', ticketLayerCount === 0);
     setCardDisabled('cardAttach', attachLayerCount === 0);
@@ -368,16 +374,19 @@ function setupLayersPanel({
     const chkT  = document.getElementById('chkTekuisLayer');
     const btnZT = document.getElementById('btnZoomTekuis');
     const tekuisLayer = getTekuisLayer?.();
-    const tekuisSource = getTekuisSource?.();
+
 
     // init from LS
     const visTekuis = getVisFlag?.('tekuis', false);
     chkT.checked = visTekuis;
-    tekuisLayer?.setVisible(chkT.checked && tekuisCount > 0);
+    const tekuisFeatureCount = tekuisSource?.getFeatures?.().length ?? tekuisCount ?? 0;
+    tekuisLayer?.setVisible(chkT.checked && tekuisFeatureCount > 0);
+
 
     chkT.addEventListener('change', () => {
       setVisFlag?.('tekuis', chkT.checked);
-      tekuisLayer?.setVisible(chkT.checked && tekuisCount > 0);
+      const count = tekuisSource?.getFeatures?.().length ?? tekuisCount ?? 0;
+      tekuisLayer?.setVisible(chkT.checked && count > 0);
       if (chkT.checked) flashLayer?.(tekuisLayer);
     });
 
@@ -396,16 +405,18 @@ function setupLayersPanel({
     const chkN  = document.getElementById('chkNecasLayer');
     const btnZN = document.getElementById('btnZoomNecas');
     const necasLayer = getNecasLayer?.();
-    const necasSource = getNecasSource?.();
+
 
     // init from LS
     const visNecas = getVisFlag?.('necas', false);
     chkN.checked = visNecas;
-    necasLayer?.setVisible(chkN.checked && necasCount > 0);
+    const necasFeatureCount = necasSource?.getFeatures?.().length ?? necasCount ?? 0;
+    necasLayer?.setVisible(chkN.checked && necasFeatureCount > 0);
 
     chkN.addEventListener('change', () => {
       setVisFlag?.('necas', chkN.checked);
-      necasLayer?.setVisible(chkN.checked && necasCount > 0);
+      const count = necasSource?.getFeatures?.().length ?? necasCount ?? 0;
+      necasLayer?.setVisible(chkN.checked && count > 0);
       if (chkN.checked) flashLayer?.(necasLayer);
     });
 
