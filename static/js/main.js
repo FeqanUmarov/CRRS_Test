@@ -1617,66 +1617,23 @@ const basemapsPanelApi = window.setupBasemapsPanel?.({
 /* =========================
    LS: görünmə və TEKUİS keş
    ========================= */
-const LS_KEYS = {
-  vis: 'map_layer_visibility_v1',
-  tekuis: (PAGE_TICKET ? `tekuis_fc_${PAGE_TICKET}` : 'tekuis_fc_global')
-};
-
-function readVis() {
-  try { return JSON.parse(localStorage.getItem(LS_KEYS.vis)) || {}; }
-  catch { return {}; }
-}
-function writeVis(v) {
-  try { localStorage.setItem(LS_KEYS.vis, JSON.stringify(v || {})); } catch{}
-}
-function setVisFlag(key, val){
-  const v = readVis(); v[key] = !!val; writeVis(v);
-}
-function getVisFlag(key, fallback){
-  const v = readVis(); return (key in v) ? !!v[key] : !!fallback;
-}
-
-/* --- TEKUİS-i LS-ə yaz/oxu --- */
-const _geojsonFmt = new ol.format.GeoJSON();
-function saveTekuisToLS(){
-  try{
-    const feats = tekuisSource.getFeatures() || [];
-    const fcObj = _geojsonFmt.writeFeaturesObject(feats, {
-      dataProjection: 'EPSG:4326',
-      featureProjection: 'EPSG:3857'
-    });
-    localStorage.setItem(LS_KEYS.tekuis, JSON.stringify(fcObj));
-  }catch{}
-}
-function loadTekuisFromLS(){
-  try{
-    const raw = localStorage.getItem(LS_KEYS.tekuis);
-    if (!raw) return false;
-    const fcObj = JSON.parse(raw);
-    const feats = _geojsonFmt.readFeatures(fcObj, {
-      dataProjection: 'EPSG:4326',
-      featureProjection: 'EPSG:3857'
-    });
-    // TEKUİS mənbəyi yenilənmədən əvvəl köhnə seçilmiş TEKUİS feature-lərini təmizlə
-    try {
-      const selA = selectAny.getFeatures();
-      const arr  = selA.getArray().slice();
-      arr.forEach(f => {
-        if (getFeatureOwner?.(f) === tekuisSource) { // bu feature əvvəl TEKUİS-dən idi
-          selA.remove(f);
-        }
-      });
-    } catch {}
-
-    tekuisSource.clear(true);
-    tekuisSource.addFeatures(feats);
-    tekuisCount = feats.length;
+const tekuisCache = window.setupTekuisCache?.({
+  pageTicket: PAGE_TICKET,
+  tekuisSource,
+  selectAny,
+  getFeatureOwner,
+  onCountChange: (count) => {
+    tekuisCount = count;
     const lbl = document.getElementById('lblTekuisCount');
     if (lbl) lbl.textContent = `(${tekuisCount})`;
-    return tekuisCount > 0;
-  }catch{ return false; }
-}
-
+  }
+});
+const readVis = tekuisCache?.readVis;
+const writeVis = tekuisCache?.writeVis;
+const setVisFlag = tekuisCache?.setVisFlag;
+const getVisFlag = tekuisCache?.getVisFlag;
+const saveTekuisToLS = tekuisCache?.saveTekuisToLS;
+const loadTekuisFromLS = tekuisCache?.loadTekuisFromLS;
 
 // === Topologiya Modalı + TEKUİS: validate → (modal) → save =================
 
