@@ -11,6 +11,7 @@ const map = new ol.Map({
   layers: [googleImagery],
   view: new ol.View({ center: ol.proj.fromLonLat([47, 40]), zoom: 7 })
 });
+window.map = map;
 
 /* =========================
    TICKET
@@ -37,6 +38,7 @@ const applyNoDataCardState = (...args) => window.LayersPanel?.applyNoDataCardSta
 const setCardDisabled = (...args) => window.LayersPanel?.setCardDisabled?.(...args);
 const updateTicketDeleteState = (...args) => window.LayersPanel?.updateTicketDeleteState?.(...args);
 const renderLayersPanel = (...args) => window.LayersPanel?.renderLayersPanel?.(...args);
+window.renderLayersPanel = renderLayersPanel;
 
 
 
@@ -2768,13 +2770,6 @@ const TEXT_TEKUIS_EMPTY   = 'TEKUİS məlumat bazasında heç bir məlumat tapı
 const TEXT_NECAS_EMPTY    = 'NECAS məlumat bazasında heç bir məlumat tapılmadı.';
 
 
-
-
-
-function renderLayersPanel(){
-
-    return window.LayersPanel?.renderLayersPanel?.();
-}
 
 const layersPanelApi = window.setupLayersPanel?.({
   openPanel,
