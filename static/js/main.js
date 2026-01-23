@@ -43,6 +43,12 @@ const renderLayersPanel = (...args) => window.LayersPanel?.renderLayersPanel?.(.
 window.renderLayersPanel = renderLayersPanel;
 
 
+let fetchTekuisByBboxForLayer = () => {};
+let fetchTekuisByAttachTicket = () => Promise.resolve();
+let refreshTekuisFromAttachIfAny = () => Promise.resolve();
+let refreshNecasFromAttachIfAny = () => Promise.resolve();
+let clearTekuisCache = () => {};
+let tekuisHasCache = () => false;
 
 // === Feature ownership map (feature → source) ===
 const trackFeatureOwnership = window.FeatureOwnership?.trackFeatureOwnership;
@@ -75,282 +81,6 @@ const {
 /* =========================
    Lay idarəsi (import olunan laylar üçün)
    ========================= */
-function isFiniteExtent(ext){
-  return Array.isArray(ext) && ext.length === 4 && ext.every(Number.isFinite);
-}
-
-// --- TEKUİS: uploaded layer-in BBOX-u ilə Oracle-dan kəsişən parselləri çək
-function fetchTekuisByBboxForLayer(layer){
-  if (!layer || !layer.getSource) return;
-  const extent3857 = layer.getSource().getExtent?.();
-  if (!isFiniteExtent(extent3857)) return;
-
-  const [minx, miny, maxx, maxy] =
-    ol.proj.transformExtent(extent3857, 'EPSG:3857', 'EPSG:4326');
-
-  const url = `/api/tekuis/parcels/by-bbox/?minx=${minx}&miny=${miny}&maxx=${maxx}&maxy=${maxy}`; // ⬅ limit YOXDUR
-
-  fetch(url, { headers: { 'Accept':'application/json' } })
-    .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-    .then(showTekuis)
-    .catch(err => console.error('TEKUİS BBOX error:', err));
-}
-
-
-function showTekuis(fc){
-  try{
-    const format = new ol.format.GeoJSON();
-    const feats = format.readFeatures(fc, {
-      dataProjection: 'EPSG:4326',
-      featureProjection: 'EPSG:3857'
-    });
-    tekuisSource.clear(true);
-    tekuisSource.addFeatures(feats);
-
-    tekuisCount = feats.length;
-
-    if (document.getElementById('cardTekuis')){
-      const mode = (window.TekuisSwitch && typeof window.TekuisSwitch.getMode === 'function')
-        ? window.TekuisSwitch.getMode()
-        : 'live';
-
-      const defaultText =
-        (mode === 'db')
-          ? (window.TEXT_TEKUIS_DB_DEFAULT || 'Tədqiqat nəticəsində dəyişiklik eilərək saxlanılan TEKUİS parselləri')
-          : (window.TEXT_TEKUIS_DEFAULT    || 'TEKUİS sisteminin parsel məlumatları.');
-
-      const suffix = (mode === 'db') ? ' (Mənbə: Local baza)' : ' (Mənbə: TEKUİS – canlı)';
-
-      applyNoDataCardState('cardTekuis', tekuisCount === 0, TEXT_TEKUIS_EMPTY, defaultText + suffix);
-    }
-
-
-    const chk = document.getElementById('chkTekuisLayer');
-    if (tekuisCount === 0){
-      tekuisLayer.setVisible(false);
-      if (chk) chk.checked = false;
-    } else if (chk){
-      tekuisLayer.setVisible(chk.checked);
-    }
-  }catch(e){
-    console.error('TEKUİS parse error:', e);
-  }
-
-  saveTekuisToLS();
-
-}
-
-
-
-// === YENİ: TEKUİS-i qoşma fayllardan gətir
-async function fetchTekuisByAttachTicket(){
-  if (!PAGE_TICKET) return;
-  try{
-    const resp = await fetch(`/api/tekuis/parcels/by-attach-ticket/?ticket=${encodeURIComponent(PAGE_TICKET)}`, {
-      headers: { 'Accept':'application/json' }
-    });
-    if (!resp.ok) throw new Error(await resp.text());
-    const fc = await resp.json();
-    showTekuis(fc);
-  }catch(e){
-    console.error('TEKUİS ATTACH error:', e);
-  }
-}
-
-
-function tekuisHasCache(){
-    if (tekuisCache?.hasTekuisCache) return tekuisCache.hasTekuisCache();
-    const key = PAGE_TICKET ? `tekuis_fc_${PAGE_TICKET}` : 'tekuis_fc_global';
-    try { return !!localStorage.getItem(key); } catch { return false; }
-}
-function clearTekuisCache(){
-  if (tekuisCache?.clearTekuisCache) {
-    tekuisCache.clearTekuisCache();
-    return;
-  }
-  const key = PAGE_TICKET ? `tekuis_fc_${PAGE_TICKET}` : 'tekuis_fc_global';
-  try { localStorage.removeItem(key); } catch {}
-}
-
-// Səhifə bağlananda / refresh olanda kəsilmiş TEKUİS keşini sil
-window.addEventListener('beforeunload', () => {
-  clearTekuisCache();
-});
-
-
-/** TEKUİS-i Qoşma laydan fon üçün yenilə.
- *  force=true olduqda LS keşinə baxmadan yenidən çəkir.
- */
-function refreshTekuisFromAttachIfAny(force=false){
-  if (!force && tekuisHasCache()) {
-    // Kəsilmiş / redaktə olunmuş TEKUİS LS-dədir – üstələməyək
-    return Promise.resolve();
-  }
-  const n = attachLayerSource?.getFeatures()?.length || 0;
-  if (n > 0){
-    return attachLayer ? fetchTekuisByGeomForLayer(attachLayer) : Promise.resolve();
-  } else {
-    tekuisSource.clear(true);
-    tekuisCount = 0;
-    const lbl = document.getElementById('lblTekuisCount');
-    if (lbl) lbl.textContent = '(0)';
-    if (document.getElementById('cardTekuis')){
-      applyNoDataCardState('cardTekuis', true, TEXT_TEKUIS_EMPTY, TEXT_TEKUIS_DEFAULT);
-    }
-    const chk = document.getElementById('chkTekuisLayer');
-    if (chk) chk.checked = false;
-    tekuisLayer?.setVisible(false);
-    return Promise.resolve();
-  }
-}
-
-
-
-function showNecas(fc){
-  try{
-    const format = new ol.format.GeoJSON();
-    const feats = format.readFeatures(fc, {
-      dataProjection: 'EPSG:4326',
-      featureProjection: 'EPSG:3857'
-    });
-    necasSource.clear(true);
-    necasSource.addFeatures(feats);
-
-    necasCount = feats.length;
-
-    if (document.getElementById('cardNecas')){
-      applyNoDataCardState('cardNecas', necasCount === 0, TEXT_NECAS_EMPTY, TEXT_NECAS_DEFAULT);
-    }
-
-    const chk = document.getElementById('chkNecasLayer');
-    if (necasCount === 0){
-      necasLayer.setVisible(false);
-      if (chk) chk.checked = false;
-    } else if (chk){
-      necasLayer.setVisible(chk.checked);
-    }
-  }catch(e){
-    console.error('NECAS parse error:', e);
-  }
-}
-
-
-function fetchNecasByBboxForLayer(layer){
-  if (!layer || !layer.getSource) return;
-  const extent3857 = layer.getSource().getExtent?.();
-  if (!extent3857) return;
-  const [minx,miny,maxx,maxy] = ol.proj.transformExtent(extent3857, 'EPSG:3857', 'EPSG:4326');
-  const url = `/api/necas/parcels/by-bbox/?minx=${minx}&miny=${miny}&maxx=${maxx}&maxy=${maxy}`;
-  fetch(url, { headers:{'Accept':'application/json'} })
-    .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-    .then(showNecas)
-    .catch(err => console.error('NECAS BBOX error:', err));
-}
-
-function fetchNecasByGeomForLayer(layer){
-  const { wkt, bufferMeters } = window.composeLayerWKTAndSuggestBuffer?.(layer) || { wkt: null, bufferMeters: 0 };
-  if (!wkt) return fetchNecasByBboxForLayer(layer);
-
-  return fetch('/api/necas/parcels/by-geom/', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json','Accept':'application/json' },
-    body: JSON.stringify({ wkt, srid: 4326, buffer_m: bufferMeters })
-  })
-  .then(async r => {
-    if (!r.ok) {
-      const txt = await r.text();             // ⬅ xətanın mətnini götür
-      throw new Error(`HTTP ${r.status} ${txt}`);
-    }
-    return r.json();
-  })
-  .then(fc => showNecas(fc))
-  .catch(err => {
-    console.error('NECAS GEOM error:', err);
-    Swal.fire('NECAS xətası', (err && err.message) || 'Naməlum xəta', 'error');
-  });
-}
-
-
-function refreshNecasFromAttachIfAny(){
-  const n = attachLayerSource?.getFeatures()?.length || 0;
-  if (n > 0){
-    return attachLayer ? fetchNecasByGeomForLayer(attachLayer) : Promise.resolve();
-  } else {
-    necasSource.clear(true);
-    necasCount = 0;
-    if (document.getElementById('cardNecas')){
-      applyNoDataCardState('cardNecas', true, TEXT_NECAS_EMPTY, TEXT_NECAS_DEFAULT);
-    }
-    const chk = document.getElementById('chkNecasLayer');
-    if (chk) chk.checked = false;
-    necasLayer?.setVisible(false);
-    return Promise.resolve();
-  }
-}
-
-
-
-
-
-
-
-
-// --- Uploaded layer-dən WKT + avtomatik buffer seçimi
-// var composeLayerWKTAndSuggestBuffer = window.composeLayerWKTAndSuggestBuffer;
-// var composeLayerMultiPolygonWKT = window.composeLayerMultiPolygonWKT;
-
-(() => {
-  const composeLayerWKTAndSuggestBuffer = window.composeLayerWKTAndSuggestBuffer;
-  const composeLayerMultiPolygonWKT = window.composeLayerMultiPolygonWKT;
-})();
-
-
-
-// --- Uploaded layer-dən (yalnız Polygon/MultiPolygon) MultiPolygon WKT düzəlt
-function composeLayerMultiPolygonWKT(layer){
-  if (!layer || !layer.getSource) return null;
-  const feats = layer.getSource().getFeatures();
-  if (!feats || feats.length === 0) return null;
-
-  const multiCoords = [];
-  feats.forEach(f=>{
-    const g = f.getGeometry();
-    if (!g) return;
-    const t = g.getType();
-    if (t === 'Polygon'){
-      const gp = g.clone().transform('EPSG:3857','EPSG:4326');
-      multiCoords.push(gp.getCoordinates());
-    } else if (t === 'MultiPolygon'){
-      const gm = g.clone().transform('EPSG:3857','EPSG:4326');
-      const parts = gm.getCoordinates();
-      parts.forEach(c => multiCoords.push(c));
-    } else {
-      // Point/Line-ları indi nəzərə almırıq; ehtiyac olsa, backend buffer_m ilə tutarıq
-    }
-  });
-
-  if (multiCoords.length === 0) return null;
-  const mp = new ol.geom.MultiPolygon(multiCoords);
-  const wktWriterLocal = new ol.format.WKT();
-  return wktWriterLocal.writeGeometry(mp, { decimals: 8 });
-}
-
-
-function fetchTekuisByGeomForLayer(layer){
-  const { wkt, bufferMeters } = window.composeLayerWKTAndSuggestBuffer?.(layer) || { wkt: null, bufferMeters: 0 };
-  if (!wkt){
-    // Heç nə formalaşmadısa — son çarə BBOX
-    return fetchTekuisByBboxForLayer(layer);
-  }
-  return fetch('/api/tekuis/parcels/by-geom/', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
-    body: JSON.stringify({ wkt, srid: 4326, buffer_m: bufferMeters }) // ⬅ limit YOXDUR
-  })
-  .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-  .then(fc => showTekuis(fc))
-  .catch(err => console.error('TEKUİS GEOM error:', err));
-}
 
 const uploadLayerApi = window.setupUploadedLayer?.({
   map,
@@ -1155,6 +885,7 @@ const tekuisCache = window.setupTekuisCache?.({
     if (lbl) lbl.textContent = `(${tekuisCount})`;
   }
 });
+window.tekuisCache = tekuisCache;
 const readVis = tekuisCache?.readVis;
 const writeVis = tekuisCache?.writeVis;
 const setVisFlag = tekuisCache?.setVisFlag;
@@ -1326,6 +1057,35 @@ async function loadAttachLayer({ fit=false } = {}){
 let tekuisCount = 0;
 let necasCount  = 0;
 
+const tekuisNecasApi = window.TekuisNecas?.create({
+  applyNoDataCardState,
+  getPageTicket: () => PAGE_TICKET,
+  getTekuisCount: () => tekuisCount,
+  setTekuisCount: (val) => { tekuisCount = val; },
+  getNecasCount: () => necasCount,
+  setNecasCount: (val) => { necasCount = val; },
+  getAttachLayer: () => attachLayer,
+  getAttachLayerSource: () => attachLayerSource,
+  getTekuisLayer: () => tekuisLayer,
+  getTekuisSource: () => tekuisSource,
+  getNecasLayer: () => necasLayer,
+  getNecasSource: () => necasSource
+});
+
+if (tekuisNecasApi) {
+  ({
+    fetchTekuisByBboxForLayer,
+    fetchTekuisByAttachTicket,
+    refreshTekuisFromAttachIfAny,
+    refreshNecasFromAttachIfAny,
+    clearTekuisCache,
+    tekuisHasCache
+  } = tekuisNecasApi);
+}
+
+window.addEventListener('beforeunload', () => {
+  clearTekuisCache();
+});
 
 
 // === 3s “glow” animasiyası ===
@@ -1491,16 +1251,6 @@ function buildFlashStyle(feature, phase) {
     })
   ];
 }
-
-
-
-
-// --- TEKUİS / NECAS kartlarının "no data" vizualı ---
-const TEXT_TEKUIS_DEFAULT = 'TEKUİS sisteminin parsel məlumatları.';
-const TEXT_NECAS_DEFAULT  = 'NECAS sistemində qeydiyyatdan keçmiş parsellər.';
-const TEXT_TEKUIS_EMPTY   = 'TEKUİS məlumat bazasında heç bir məlumat tapılmadı.';
-const TEXT_NECAS_EMPTY    = 'NECAS məlumat bazasında heç bir məlumat tapılmadı.';
-
 
 
 const layersPanelApi = window.setupLayersPanel?.({
