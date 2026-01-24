@@ -117,6 +117,7 @@ window.TekuisNecas.create = function createTekuisNecas({
 
     window.saveTekuisToLS?.();
   }
+  window.showTekuis = showTekuis;
 
   function fetchTekuisByBboxForLayer(layer){
     if (!layer || !layer.getSource) return;

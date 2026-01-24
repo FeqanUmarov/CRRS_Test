@@ -35,7 +35,11 @@
     if (window.CURRENT_META_ID) {
       return { type: 'meta_id', value: window.CURRENT_META_ID };
     }
-    // 2. Attach list varsa, onun meta_id-sini götür
+    // 2. Səhifə meta_id-si varsa, onu istifadə et
+    if (typeof window.META_ID !== 'undefined' && window.META_ID !== null && window.META_ID !== '') {
+      return { type: 'meta_id', value: window.META_ID };
+    }
+    // 3. Attach list varsa, onun meta_id-sini götür
     if (window.attachListData && window.attachListData.length > 0) {
       const firstAttach = window.attachListData[0];
       if (firstAttach.meta_id) {
@@ -43,7 +47,7 @@
       }
     }
     
-    // 3. GIS data obyektlərindən meta_id tapmağa çalış
+    // 4. GIS data obyektlərindən meta_id tapmağa çalış
     if (window.gisDataFeatures && window.gisDataFeatures.length > 0) {
       const firstFeature = window.gisDataFeatures[0];
       if (firstFeature.properties && firstFeature.properties.fk_metadata) {
@@ -51,19 +55,19 @@
       }
     }
     
-    // 4. Əvvəl window.PAGE_TICKET yoxla
+    // 5. Əvvəl window.PAGE_TICKET yoxla
     if (window.PAGE_TICKET) {
       return { type: 'ticket', value: window.PAGE_TICKET };
     }
     
-    // 5. URL-dən ticket parametrini yoxla
+    // 6. URL-dən ticket parametrini yoxla
     const urlParams = new URLSearchParams(window.location.search);
     const ticketFromUrl = urlParams.get('ticket');
     if (ticketFromUrl) {
       return { type: 'ticket', value: ticketFromUrl };
     }
     
-    // 6. Form və ya DOM elementlərindən ticket tapmağa çalış
+    // 7. Form və ya DOM elementlərindən ticket tapmağa çalış
     const ticketInput = document.querySelector('input[name="ticket"]');
     if (ticketInput && ticketInput.value) {
       return { type: 'ticket', value: ticketInput.value };
@@ -143,19 +147,18 @@
       actions.prepend(btn);
 
       btn.addEventListener('click', async ()=>{
-        // Əvvəlcə identifier olub-olmadığını yoxla
-        const identifier = getCurrentIdentifier();
-        if (!identifier) {
-          Swal.fire('Diqqət', 'Əvvəlcə məlumat yükləyin və ya ticket daxil edin.', 'warning');
-          return;
-        }
-        
-        const next = (TEKUIS_MODE === 'live') ? 'db' : 'live';
-        setTekuisMode(next);
-
-        if (TEKUIS_MODE === 'db'){
+        const wantsDb = btn.title.includes('PostgreSQL');
+        if (wantsDb){
+          // Əvvəlcə identifier olub-olmadığını yoxla
+          const identifier = getCurrentIdentifier();
+          if (!identifier) {
+            Swal.fire('Diqqət', 'Əvvəlcə məlumat yükləyin və ya ticket daxil edin.', 'warning');
+            return;
+          }
+          setTekuisMode('db');
           await fetchTekuisFromDb();
         } else {
+          setTekuisMode('live');
           // canlı TEKUİS-ə qayıdış: qoşma geometriyasına görə çək (force=true)
           window.refreshTekuisFromAttachIfAny && await window.refreshTekuisFromAttachIfAny(true);
         }

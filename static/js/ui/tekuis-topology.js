@@ -784,6 +784,10 @@ async function tryValidateAndSaveTekuis(){
     window._ignoredTopo = { overlaps: new Set(), gaps: new Set() };
     window._topoLastOk = null;
     window._lastTopoValidation = null;
+
+    if (s.data?.meta_id != null) {
+      window.CURRENT_META_ID = s.data.meta_id;
+    }
     
     Swal.fire('Uğurlu', `${s.data?.saved_count ?? feats.length} TEKUİS parseli bazaya yazıldı.`, 'success');
     
