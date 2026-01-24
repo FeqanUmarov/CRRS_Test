@@ -88,19 +88,55 @@
   </script>
 
   <style>
-    .right-tools{
-      position:absolute; right:16px; top:80px; z-index:999;
-      background:#fff; border-radius:5px; box-shadow:0 6px 18px rgba(0,0,0,.18);
-      padding:6px; display:flex; flex-direction:column; gap:8px;
+.right-tools{
+  position:absolute; right:22px; top:88px; z-index:999;
+  display:flex; flex-direction:column; gap:10px; padding:10px 9px;
+  border-radius:16px;
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(243,248,255,.92));
+  border:1px solid rgba(148,163,184,.35);
+  box-shadow:
+    0 16px 40px rgba(15,23,42,.18),
+    0 4px 12px rgba(15,23,42,.12);
+  backdrop-filter: blur(6px);
+}
+.right-tools::before{
+  content:"";
+  position:absolute; inset:6px;
+  border-radius:12px;
+  border:1px solid rgba(226,232,240,.9);
+  pointer-events:none;
+}
+.rt-btn{
+  width:52px; height:52px; border-radius:16px;
+  border:1px solid rgba(226,232,240,.9);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(145deg, #ffffff, #e9f2ff);
+  transition:transform .15s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.rt-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:
+    0 14px 24px rgba(15,23,42,.08),
+    inset 0 1px 0 rgba(255,255,255,.425);
+  border-color:rgba(148,163,184,.6);
     }
-    .rt-btn{
-      width:44px; height:44px; border-radius:12px; border:none; cursor:pointer;
-      display:flex; align-items:center; justify-content:center; background:#f8fafc;
-      transition:transform .08s ease, box-shadow .12s ease, background .12s ease;
+    .rt-btn:active{
+      transform:translateY(0);
     }
-    .rt-btn:hover{ transform:translateY(-1px); box-shadow:0 6px 14px rgba(2,6,23,.12); }
-    .rt-btn.active{ background:#e0f2fe; box-shadow:0 0 0 2px rgba(2,132,199,.35) inset; }
+    .rt-btn.active{
+      background:linear-gradient(145deg, #ecfeff, #cffafe);
+      border-color:rgba(6,182,212,.55);
+    }
+    .rt-btn.active{
+      background:linear-gradient(145deg, #ecfeff, #cffafe);
+      border-color:rgba(6,182,212,.55);
+      box-shadow:
+        0 0 0 3px rgba(6,182,212,.2),
+        0 10px 20px rgba(6,182,212,.25);
+
+    }
     .rt-icon{ width:24px; height:24px; }
+    .rt-icon-img{ width:26px; height:26px; object-fit:contain; }
 
     .kv{
       display:grid; grid-template-columns: 180px 1fr; gap:6px 12px;
