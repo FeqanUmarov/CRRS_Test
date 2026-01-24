@@ -29,6 +29,17 @@
     }
   }
 
+  function getNextTekuisMode(){
+    return TEKUIS_MODE === 'db' ? 'live' : 'db';
+  }
+
+  function getRefreshTekuisFromAttach(){
+    return window.refreshTekuisFromAttachIfAny
+      || window.MainState?.refreshTekuisFromAttachIfAny
+      || window.MainState?.layers?.refreshTekuisFromAttachIfAny;
+  }
+
+
   // Ticket və ya meta_id tapmaq üçün yardımçı funksiya
   function getCurrentIdentifier(){
     // 1. window.CURRENT_META_ID yoxla (əgər sistemdə belə bir dəyişən varsa)
@@ -147,8 +158,8 @@
       actions.prepend(btn);
 
       btn.addEventListener('click', async ()=>{
-        const wantsDb = btn.title.includes('PostgreSQL');
-        if (wantsDb){
+        const nextMode = getNextTekuisMode();
+        if (nextMode === 'db'){
           // Əvvəlcə identifier olub-olmadığını yoxla
           const identifier = getCurrentIdentifier();
           if (!identifier) {
@@ -160,7 +171,12 @@
         } else {
           setTekuisMode('live');
           // canlı TEKUİS-ə qayıdış: qoşma geometriyasına görə çək (force=true)
-          window.refreshTekuisFromAttachIfAny && await window.refreshTekuisFromAttachIfAny(true);
+                    const refreshTekuis = getRefreshTekuisFromAttach();
+          if (refreshTekuis) {
+            await refreshTekuis(true);
+          } else {
+            console.warn('TEKUİS canlı yeniləmə funksiyası tapılmadı');
+          }
         }
 
         const chk = document.getElementById('chkTekuisLayer');
