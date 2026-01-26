@@ -191,7 +191,7 @@ function setupLayersPanel({
           <button id="btnZoomTekuis"               class="icon-btn ico-zoom zoombtn"  title="Laya yaxınlaşdır"></button>
         </div>
       </div>
-      <div class="small" style="color:#6b7280;">TEKUİS sisteminin parsel məlumatları.</div>
+      <div class="small" style="color:#6b7280;">Tədqiqat nəticəsində dəyişdirilmiş TEKUİS Parselləri.</div>
     </div>
 
     <div style="height:10px;"></div>

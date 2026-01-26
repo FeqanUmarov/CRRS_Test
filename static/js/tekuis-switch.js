@@ -1,34 +1,22 @@
 // tekuis-switch.js
 // TEKUİS mənbə rejimi: 'old' (tekuis_parcel_old) | 'current' (tekuis_parcel)
 (function(){
-  let TEKUIS_MODE = 'live';
+  let TEKUIS_MODE = 'current';
 
   const TEKUIS_SOURCES = {
-    live: {
-      label: 'tekuis_live',
-      title: 'tekuis_parcel məlumatlarına keç',
-      uiClass: 'is-current',
-      note: 'Mənbə: TEKUİS – canlı'
-    },
     old: {
-      label: 'tekuis_parcel_old',
-      title: 'tekuis_parcel məlumatlarına keç',
-      uiClass: 'is-old',
-      note: 'Mənbə: tekuis_parcel_old'
+      title: 'TEKUİS (köhnə) məlumatlarına keç',
+      uiClass: 'is-old'
     },
     current: {
-      label: 'tekuis_parcel',
-      title: 'tekuis_parcel_old məlumatlarına keç',
-      uiClass: 'is-current',
-      note: 'Mənbə: tekuis_parcel'
+      title: 'TEKUİS (cari) məlumatlarına keç',
+      uiClass: 'is-current'
     }
   };
 
   function setTekuisMode(mode){
     if (mode === 'old') {
       TEKUIS_MODE = 'old';
-    } else if (mode === 'live') {
-      TEKUIS_MODE = 'live';
     } else {
       TEKUIS_MODE = 'current';
     }
@@ -43,21 +31,21 @@
     const source = TEKUIS_SOURCES[TEKUIS_MODE] || TEKUIS_SOURCES.current;
     const other = TEKUIS_MODE === 'old'
       ? TEKUIS_SOURCES.current
-      : (TEKUIS_MODE === 'live' ? TEKUIS_SOURCES.current : TEKUIS_SOURCES.old);
+      : TEKUIS_SOURCES.old;
 
     btn.title = other.title;
     btn.classList.remove('is-old', 'is-current');
     btn.classList.add(source.uiClass);
 
-    const description = TEKUIS_MODE === 'live'
-      ? (window.TEXT_TEKUIS_DEFAULT || 'TEKUİS sisteminin parsel məlumatları.')
-      : (window.TEXT_TEKUIS_DB_DEFAULT || 'tədqiqat nəticəsində dəyişiklik edilərək saxlanılan TEKUİS parselləri');
+    const description = TEKUIS_MODE === 'old'
+      ? 'Köhnə TEKUİS məlumatları'
+      : 'Tədqiqat nəticəsində dəyişdirilmiş TEKUİS Parselləri.';
 
-    small.textContent = `${description} (${source.note})`;
+    small.textContent = description;
   }
 
   function getNextTekuisMode(){
-        if (TEKUIS_MODE === 'current') return 'old';
+    if (TEKUIS_MODE === 'current') return 'old';
     if (TEKUIS_MODE === 'old') return 'current';
     return 'current';
   }

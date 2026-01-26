@@ -14,10 +14,14 @@ window.TekuisNecas.create = function createTekuisNecas({
   getNecasLayer,
   getNecasSource
 } = {}) {
-  const TEXT_TEKUIS_DEFAULT = 'TEKUİS sisteminin parsel məlumatları.';
+  const TEXT_TEKUIS_DEFAULT = 'Tədqiqat nəticəsində dəyişdirilmiş TEKUİS Parselləri.';
+  const TEXT_TEKUIS_OLD     = 'Köhnə TEKUİS məlumatları';
   const TEXT_NECAS_DEFAULT  = 'NECAS sistemində qeydiyyatdan keçmiş parsellər.';
   const TEXT_TEKUIS_EMPTY   = 'TEKUİS məlumat bazasında heç bir məlumat tapılmadı.';
   const TEXT_NECAS_EMPTY    = 'NECAS məlumat bazasında heç bir məlumat tapılmadı.';
+
+  window.TEXT_TEKUIS_DEFAULT = TEXT_TEKUIS_DEFAULT;
+  window.TEXT_TEKUIS_OLD = TEXT_TEKUIS_OLD;
 
   const localState = {
     tekuisCount: 0,
@@ -83,28 +87,24 @@ window.TekuisNecas.create = function createTekuisNecas({
       tekuisSource.addFeatures(feats);
 
       setTekuisCountSafe(feats.length);
-      const tekuisMode = window.TekuisSwitch?.getMode?.() || 'live';
-      if (tekuisMode === 'live') {
+      const tekuisMode = window.TekuisSwitch?.getMode?.() || 'current';
+      if (tekuisMode === 'old') {
         window.tekuisCache?.saveOriginalTekuis?.(fc);
       }
 
       if (document.getElementById('cardTekuis')){
         const mode = (window.TekuisSwitch && typeof window.TekuisSwitch.getMode === 'function')
           ? window.TekuisSwitch.getMode()
-          : 'live';
-
-        const isDbMode = mode === 'current' || mode === 'old';
-        const defaultText = isDbMode
-          ? (window.TEXT_TEKUIS_DB_DEFAULT || 'tədqiqat nəticəsində dəyişiklik edilərək saxlanılan TEKUİS parselləri')
-          : (window.TEXT_TEKUIS_DEFAULT    || 'TEKUİS sisteminin parsel məlumatları.');
-
-        const suffix = isDbMode ? ' (Mənbə: Local baza)' : ' (Mənbə: TEKUİS – canlı)';
+          : 'current';
+        const defaultText = mode === 'old'
+          ? TEXT_TEKUIS_OLD
+          : TEXT_TEKUIS_DEFAULT;
 
         safeApplyNoDataCardState(
           'cardTekuis',
           getTekuisCountSafe() === 0,
           TEXT_TEKUIS_EMPTY,
-          defaultText + suffix
+          defaultText
         );
       }
 
@@ -125,36 +125,15 @@ window.TekuisNecas.create = function createTekuisNecas({
 
   function fetchTekuisByBboxForLayer(layer){
     if (!layer || !layer.getSource) return;
-    const extent3857 = layer.getSource().getExtent?.();
-    if (!isFiniteExtent(extent3857)) return;
-
-    window.TekuisSwitch?.setMode?.('live');
-
-    const [minx, miny, maxx, maxy] =
-      ol.proj.transformExtent(extent3857, 'EPSG:3857', 'EPSG:4326');
-
-    const url = `/api/tekuis/parcels/by-bbox/?minx=${minx}&miny=${miny}&maxx=${maxx}&maxy=${maxy}`; // ⬅ limit YOXDUR
-
-    fetch(url, { headers: { 'Accept':'application/json' } })
-      .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-      .then(showTekuis)
-      .catch(err => console.error('TEKUİS BBOX error:', err));
+    window.TekuisSwitch?.setMode?.('current');
+    return window.TekuisSwitch?.showSource?.('current');
   }
 
   async function fetchTekuisByAttachTicket(){
     const pageTicket = getPageTicketSafe();
     if (!pageTicket) return;
-    window.TekuisSwitch?.setMode?.('live');
-    try{
-      const resp = await fetch(`/api/tekuis/parcels/by-attach-ticket/?ticket=${encodeURIComponent(pageTicket)}`, {
-        headers: { 'Accept':'application/json' }
-      });
-      if (!resp.ok) throw new Error(await resp.text());
-      const fc = await resp.json();
-      showTekuis(fc);
-    }catch(e){
-      console.error('TEKUİS ATTACH error:', e);
-    }
+    window.TekuisSwitch?.setMode?.('current');
+    await window.TekuisSwitch?.showSource?.('current');
   }
 
   function tekuisHasCache(){
@@ -175,20 +154,13 @@ window.TekuisNecas.create = function createTekuisNecas({
   }
 
   function fetchTekuisByGeomForLayer(layer){
-    const { wkt, bufferMeters } = window.composeLayerWKTAndSuggestBuffer?.(layer) || { wkt: null, bufferMeters: 0 };
+    const { wkt } = window.composeLayerWKTAndSuggestBuffer?.(layer) || { wkt: null };
     if (!wkt){
       // Heç nə formalaşmadısa — son çarə BBOX
       return fetchTekuisByBboxForLayer(layer);
     }
-    window.TekuisSwitch?.setMode?.('live');
-    return fetch('/api/tekuis/parcels/by-geom/', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
-      body: JSON.stringify({ wkt, srid: 4326, buffer_m: bufferMeters }) // ⬅ limit YOXDUR
-    })
-    .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-    .then(fc => showTekuis(fc))
-    .catch(err => console.error('TEKUİS GEOM error:', err));
+    window.TekuisSwitch?.setMode?.('current');
+    return window.TekuisSwitch?.showSource?.('current');
   }
 
   function refreshTekuisFromAttachIfAny(force=false){
@@ -196,26 +168,25 @@ window.TekuisNecas.create = function createTekuisNecas({
       // Kəsilmiş / redaktə olunmuş TEKUİS LS-dədir – üstələməyək
       return Promise.resolve();
     }
-    const attachLayerSource = getAttachLayerSourceSafe();
-    const n = attachLayerSource?.getFeatures?.()?.length || 0;
-    if (n > 0){
-      const attachLayer = getAttachLayerSafe();
-      return attachLayer ? fetchTekuisByGeomForLayer(attachLayer) : Promise.resolve();
-    } else {
-      const tekuisSource = getTekuisSourceSafe();
-      const tekuisLayer = getTekuisLayerSafe();
-      tekuisSource?.clear(true);
-      setTekuisCountSafe(0);
-      const lbl = document.getElementById('lblTekuisCount');
-      if (lbl) lbl.textContent = '(0)';
-      if (document.getElementById('cardTekuis')){
-        safeApplyNoDataCardState('cardTekuis', true, TEXT_TEKUIS_EMPTY, TEXT_TEKUIS_DEFAULT);
-      }
-      const chk = document.getElementById('chkTekuisLayer');
-      if (chk) chk.checked = false;
-      tekuisLayer?.setVisible(false);
-      return Promise.resolve();
+    const pageTicket = getPageTicketSafe();
+    if (pageTicket && window.TekuisSwitch?.showSource) {
+      window.TekuisSwitch.setMode?.('current');
+      return window.TekuisSwitch.showSource('current');
     }
+    const tekuisSource = getTekuisSourceSafe();
+    const tekuisLayer = getTekuisLayerSafe();
+    tekuisSource?.clear(true);
+    setTekuisCountSafe(0);
+    const lbl = document.getElementById('lblTekuisCount');
+    if (lbl) lbl.textContent = '(0)';
+    if (document.getElementById('cardTekuis')){
+      safeApplyNoDataCardState('cardTekuis', true, TEXT_TEKUIS_EMPTY, TEXT_TEKUIS_DEFAULT);
+
+    }
+    const chk = document.getElementById('chkTekuisLayer');
+    if (chk) chk.checked = false;
+    tekuisLayer?.setVisible(false);
+    return Promise.resolve();
   }
 
   function showNecas(fc){
