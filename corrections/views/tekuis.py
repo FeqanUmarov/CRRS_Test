@@ -18,6 +18,7 @@ from .geo_utils import _canonize_crs_value, _clean_wkt_text, _flatten_geoms, _pa
 from corrections.tekuis_validation import ignore_gap, validate_tekuis
 
 TEKUIS_ATTRS = (
+    "ID",
     "LAND_CATEGORY2ENUM",
     "LAND_CATEGORY_ENUM",
     "NAME",
@@ -89,7 +90,7 @@ def tekuis_parcels_by_bbox(request):
 
     sql = f"""
         SELECT sde.st_astext(t.SHAPE) AS wkt,
-               t.LAND_CATEGORY2ENUM, t.LAND_CATEGORY_ENUM, t.NAME, t.OWNER_TYPE_ENUM,
+               t.ID, t.LAND_CATEGORY2ENUM, t.LAND_CATEGORY_ENUM, t.NAME, t.OWNER_TYPE_ENUM,
                t.SUVARILMA_NOVU_ENUM, t.EMLAK_NOVU_ENUM, t.OLD_LAND_CATEGORY2ENUM,
                t.TERRITORY_NAME, t.RAYON_ADI, t.IED_ADI, t.BELEDIYE_ADI,t.LAND_CATEGORY3ENUM,t.LAND_CATEGORY4ENUM, t.AREA_HA
           FROM {schema}.{table} t
@@ -785,6 +786,7 @@ def _insert_tekuis_parcel_rows(
                     continue
 
                 props = f.get("properties") or {}
+                tekuis_db_id = _guess_tekuis_id(props)
                 colvals = {
                     "kateqoriya": _prop_ci(props, "LAND_CATEGORY_ENUM"),
                     "uqodiya": _prop_ci(props, "LAND_CATEGORY2ENUM"),
@@ -799,6 +801,7 @@ def _insert_tekuis_parcel_rows(
                     "belediyye_adi": _prop_ci(props, "BELEDIYE_ADI"),
                     "sahe_ha": _to_float_or_none(_prop_ci(props, "AREA_HA")),
                     "qeyd": _prop_ci(props, "NAME"),
+                    "tekuis_db_id": tekuis_db_id,
                 }
 
                 geom_json = json.dumps(geom)
@@ -809,7 +812,7 @@ def _insert_tekuis_parcel_rows(
                         kateqoriya, uqodiya, alt_kateqoriya, alt_uqodiya,
                         mulkiyyet, suvarma, emlak_novu, islahat_uqodiyasi,
                         rayon_adi, ied_adi, belediyye_adi,
-                        sahe_ha, qeyd, geom,
+                        sahe_ha, qeyd, tekuis_db_id, geom,
                         meta_id, created_date, last_edited_date, status,
                         user_id, user_full_name
                     )
@@ -817,7 +820,7 @@ def _insert_tekuis_parcel_rows(
                         %s, %s, %s, %s,
                         %s, %s, %s, %s,
                         %s, %s, %s,
-                        %s, %s,
+                        %s, %s, %s,
                         ST_Multi( ST_Buffer( ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 0) ),
                         %s, now(), now(), 1,
                         %s, %s
@@ -838,6 +841,7 @@ def _insert_tekuis_parcel_rows(
                         colvals["belediyye_adi"],
                         colvals["sahe_ha"],
                         colvals["qeyd"],
+                        colvals["tekuis_db_id"],
                         geom_json,
                         int(meta_id),
                         user_id,
