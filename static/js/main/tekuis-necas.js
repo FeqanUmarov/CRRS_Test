@@ -83,6 +83,10 @@ window.TekuisNecas.create = function createTekuisNecas({
       tekuisSource.addFeatures(feats);
 
       setTekuisCountSafe(feats.length);
+      const tekuisMode = window.TekuisSwitch?.getMode?.() || 'live';
+      if (tekuisMode === 'live') {
+        window.tekuisCache?.saveOriginalTekuis?.(fc);
+      }
 
       if (document.getElementById('cardTekuis')){
         const mode = (window.TekuisSwitch && typeof window.TekuisSwitch.getMode === 'function')

@@ -751,108 +751,138 @@ def _guess_tekuis_id(props: dict):
     return None
 
 
-def _insert_tekuis_parcel_rows(
+def _build_tekuis_colvals(props: dict) -> dict:
+    tekuis_db_id = _guess_tekuis_id(props)
+    return {
+        "kateqoriya": _prop_ci(props, "LAND_CATEGORY_ENUM"),
+        "uqodiya": _prop_ci(props, "LAND_CATEGORY2ENUM"),
+        "alt_kateqoriya": _prop_ci(props, "LAND_CATEGORY3ENUM"),
+        "alt_uqodiya": _prop_ci(props, "LAND_CATEGORY4ENUM"),
+        "islahat_uqodiyasi": _prop_ci(props, "OLD_LAND_CATEGORY2ENUM"),
+        "mulkiyyet": _prop_ci(props, "OWNER_TYPE_ENUM"),
+        "suvarma": _prop_ci(props, "SUVARILMA_NOVU_ENUM"),
+        "emlak_novu": _prop_ci(props, "EMLAK_NOVU_ENUM"),
+        "rayon_adi": _prop_ci(props, "RAYON_ADI"),
+        "ied_adi": _prop_ci(props, "IED_ADI"),
+        "belediyye_adi": _prop_ci(props, "BELEDIYE_ADI"),
+        "sahe_ha": _to_float_or_none(_prop_ci(props, "AREA_HA")),
+        "qeyd": _prop_ci(props, "NAME"),
+        "tekuis_db_id": tekuis_db_id,
+    }
+
+
+def _insert_tekuis_rows(
+    cur,
+    *,
+    table_name: str,
     meta_id: int,
-    ticket: str,
     features: list,
-    replace: bool = True,
     user_id: Optional[int] = None,
     user_full_name: Optional[str] = None,
+    include_user_fields: bool = False,
 ):
     saved = 0
     skipped = 0
-    deactivated = 0
 
-    with transaction.atomic():
-        with connection.cursor() as cur:
-            if replace:
-                cur.execute(
-                    """
-                    UPDATE tekuis_parcel
-                       SET status = 0,
-                           last_edited_date = now()
-                     WHERE meta_id = %s
-                       AND COALESCE(status,1) = 1
-                """,
-                    [meta_id],
+    for f in features or []:
+        geom = f.get("geometry") or {}
+        gtype = (geom.get("type") or "").lower()
+        if "polygon" not in gtype:  # yalnız (Multi)Polygon saxlayırıq
+            skipped += 1
+            continue
+
+        props = f.get("properties") or {}
+        colvals = _build_tekuis_colvals(props)
+        geom_json = json.dumps(geom)
+
+
+                if include_user_fields:
+            cur.execute(
+                f"""
+                INSERT INTO {table_name} (
+                    kateqoriya, uqodiya, alt_kateqoriya, alt_uqodiya,
+                    mulkiyyet, suvarma, emlak_novu, islahat_uqodiyasi,
+                    rayon_adi, ied_adi, belediyye_adi,
+                    sahe_ha, qeyd, tekuis_db_id, geom,
+                    meta_id, created_date, last_edited_date, status,
+                    user_id, user_full_name
                 )
-                deactivated = cur.rowcount or 0
-
-            for f in features or []:
-                geom = f.get("geometry") or {}
-                gtype = (geom.get("type") or "").lower()
-                if "polygon" not in gtype:  # yalnız (Multi)Polygon saxlayırıq
-                    skipped += 1
-                    continue
-
-                props = f.get("properties") or {}
-                tekuis_db_id = _guess_tekuis_id(props)
-                colvals = {
-                    "kateqoriya": _prop_ci(props, "LAND_CATEGORY_ENUM"),
-                    "uqodiya": _prop_ci(props, "LAND_CATEGORY2ENUM"),
-                    "alt_kateqoriya": _prop_ci(props, "LAND_CATEGORY3ENUM"),
-                    "alt_uqodiya": _prop_ci(props, "LAND_CATEGORY4ENUM"),
-                    "islahat_uqodiyasi": _prop_ci(props, "OLD_LAND_CATEGORY2ENUM"),
-                    "mulkiyyet": _prop_ci(props, "OWNER_TYPE_ENUM"),
-                    "suvarma": _prop_ci(props, "SUVARILMA_NOVU_ENUM"),
-                    "emlak_novu": _prop_ci(props, "EMLAK_NOVU_ENUM"),
-                    "rayon_adi": _prop_ci(props, "RAYON_ADI"),
-                    "ied_adi": _prop_ci(props, "IED_ADI"),
-                    "belediyye_adi": _prop_ci(props, "BELEDIYE_ADI"),
-                    "sahe_ha": _to_float_or_none(_prop_ci(props, "AREA_HA")),
-                    "qeyd": _prop_ci(props, "NAME"),
-                    "tekuis_db_id": tekuis_db_id,
-                }
-
-                geom_json = json.dumps(geom)
-
-                cur.execute(
-                    """
-                    INSERT INTO tekuis_parcel (
-                        kateqoriya, uqodiya, alt_kateqoriya, alt_uqodiya,
-                        mulkiyyet, suvarma, emlak_novu, islahat_uqodiyasi,
-                        rayon_adi, ied_adi, belediyye_adi,
-                        sahe_ha, qeyd, tekuis_db_id, geom,
-                        meta_id, created_date, last_edited_date, status,
-                        user_id, user_full_name
-                    )
-                    VALUES (
-                        %s, %s, %s, %s,
-                        %s, %s, %s, %s,
-                        %s, %s, %s,
-                        %s, %s, %s,
-                        ST_Multi( ST_Buffer( ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 0) ),
-                        %s, now(), now(), 1,
-                        %s, %s
-                    )
-                    RETURNING tekuis_id
-                """,
-                    [
-                        colvals["kateqoriya"],
-                        colvals["uqodiya"],
-                        colvals["alt_kateqoriya"],
-                        colvals["alt_uqodiya"],
-                        colvals["mulkiyyet"],
-                        colvals["suvarma"],
-                        colvals["emlak_novu"],
-                        colvals["islahat_uqodiyasi"],
-                        colvals["rayon_adi"],
-                        colvals["ied_adi"],
-                        colvals["belediyye_adi"],
-                        colvals["sahe_ha"],
-                        colvals["qeyd"],
-                        colvals["tekuis_db_id"],
-                        geom_json,
-                        int(meta_id),
-                        user_id,
-                        user_full_name,
-                    ],
+                VALUES (
+                    %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    ST_Multi( ST_Buffer( ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 0) ),
+                    %s, now(), now(), 1,
+                    %s, %s
                 )
+                RETURNING tekuis_id
+            """,
+                [
+                    colvals["kateqoriya"],
+                    colvals["uqodiya"],
+                    colvals["alt_kateqoriya"],
+                    colvals["alt_uqodiya"],
+                    colvals["mulkiyyet"],
+                    colvals["suvarma"],
+                    colvals["emlak_novu"],
+                    colvals["islahat_uqodiyasi"],
+                    colvals["rayon_adi"],
+                    colvals["ied_adi"],
+                    colvals["belediyye_adi"],
+                    colvals["sahe_ha"],
+                    colvals["qeyd"],
+                    colvals["tekuis_db_id"],
+                    geom_json,
+                    int(meta_id),
+                    user_id,
+                    user_full_name,
+                ],
+            )
+        else:
+            cur.execute(
+                f"""
+                INSERT INTO {table_name} (
+                    kateqoriya, uqodiya, alt_kateqoriya, alt_uqodiya,
+                    mulkiyyet, suvarma, emlak_novu, islahat_uqodiyasi,
+                    rayon_adi, ied_adi, belediyye_adi,
+                    sahe_ha, qeyd, tekuis_db_id, geom,
+                    meta_id, created_date, last_edited_date, status
+                )
+                VALUES (
+                    %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    ST_Multi( ST_Buffer( ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 0) ),
+                    %s, now(), now(), 1
+                )
+                RETURNING tekuis_id
+            """,
+                [
+                    colvals["kateqoriya"],
+                    colvals["uqodiya"],
+                    colvals["alt_kateqoriya"],
+                    colvals["alt_uqodiya"],
+                    colvals["mulkiyyet"],
+                    colvals["suvarma"],
+                    colvals["emlak_novu"],
+                    colvals["islahat_uqodiyasi"],
+                    colvals["rayon_adi"],
+                    colvals["ied_adi"],
+                    colvals["belediyye_adi"],
+                    colvals["sahe_ha"],
+                    colvals["qeyd"],
+                    colvals["tekuis_db_id"],
+                    geom_json,
+                    int(meta_id),
+                ],
+            )
 
-                _ = cur.fetchone()[0]  # lazım olsa istifadə et
-                saved += 1
+        _ = cur.fetchone()[0]  # lazım olsa istifadə et
+        saved += 1
 
-    return {"saved": saved, "skipped": skipped, "deactivated": deactivated}
+    return {"saved": saved, "skipped": skipped}
 
 
 def _json_body(request):
@@ -1023,7 +1053,7 @@ def save_tekuis_parcels(request):
     if body_meta is not None and int(body_meta) != int(meta_id):
         return JsonResponse({"ok": False, "error": "meta_id mismatch"}, status=409)
 
-    # Ticket lazımdır (log/trace və _insert_tekuis_parcel_rows üçün)
+    # Ticket lazımdır (log/trace üçün)
     ticket = (
         request.headers.get("X-Ticket")
         or request.GET.get("ticket")
@@ -1040,6 +1070,17 @@ def save_tekuis_parcels(request):
             {"ok": False, "code": "ALREADY_SAVED", "message": "TEKUİS parsellər local bazada yadda saxlanılıb"},
             status=409,
         )
+
+    original_fc = data.get("original_geojson") or {}
+    if not isinstance(original_fc, dict) or original_fc.get("type") != "FeatureCollection":
+        return JsonResponse(
+            {"ok": False, "error": "original_geojson FeatureCollection tələb olunur"},
+            status=400,
+        )
+
+    original_features = original_fc.get("features") or []
+    if not original_features:
+        return JsonResponse({"ok": False, "error": "Boş original FeatureCollection"}, status=400)
 
     skip_validation = bool(data.get("skip_validation", False))
     if not skip_validation:
@@ -1088,14 +1129,41 @@ def save_tekuis_parcels(request):
         uid = getattr(request, "user_id_from_token", None)
         ufn = getattr(request, "user_full_name_from_token", None)
 
-        res = _insert_tekuis_parcel_rows(
-            meta_id=int(meta_id),
-            ticket=ticket,
-            features=features,
-            replace=bool(data.get("replace", True)),
-            user_id=uid,
-            user_full_name=ufn,
-        )
+        replace = bool(data.get("replace", True))
+        deactivated = 0
+
+        with transaction.atomic():
+            with connection.cursor() as cur:
+                if replace:
+                    cur.execute(
+                        """
+                        UPDATE tekuis_parcel
+                           SET status = 0,
+                               last_edited_date = now()
+                         WHERE meta_id = %s
+                           AND COALESCE(status,1) = 1
+                    """,
+                        [meta_id],
+                    )
+                    deactivated = cur.rowcount or 0
+
+                old_res = _insert_tekuis_rows(
+                    cur,
+                    table_name="tekuis_parcel_old",
+                    meta_id=int(meta_id),
+                    features=original_features,
+                    include_user_fields=False,
+                )
+
+                res = _insert_tekuis_rows(
+                    cur,
+                    table_name="tekuis_parcel",
+                    meta_id=int(meta_id),
+                    features=features,
+                    user_id=uid,
+                    user_full_name=ufn,
+                    include_user_fields=True,
+                )
 
         return JsonResponse(
             {
@@ -1104,7 +1172,9 @@ def save_tekuis_parcels(request):
                 "ticket": ticket,
                 "saved_count": res["saved"],
                 "skipped_non_polygon": res["skipped"],
-                "deactivated_old": res["deactivated"],
+                "saved_old_count": old_res["saved"],
+                "skipped_old_non_polygon": old_res["skipped"],
+                "deactivated_old": deactivated,
             },
             status=200,
         )

@@ -7,7 +7,8 @@ function setupTekuisCache({
 } = {}){
   const LS_KEYS = {
     vis: 'map_layer_visibility_v1',
-    tekuis: (pageTicket ? `tekuis_fc_${pageTicket}` : 'tekuis_fc_global')
+    tekuis: (pageTicket ? `tekuis_fc_${pageTicket}` : 'tekuis_fc_global'),
+    tekuisOriginal: (pageTicket ? `tekuis_fc_original_${pageTicket}` : 'tekuis_fc_original_global')
   };
 
 const geojsonFmt = new ol.format.GeoJSON();
@@ -52,6 +53,29 @@ function clearTekuisCache(){
   try { localStorage.removeItem(LS_KEYS.tekuis); } catch {}
 }
 
+function saveOriginalTekuis(fcObj){
+  if (!fcObj || typeof fcObj !== 'object') return;
+  try { localStorage.setItem(LS_KEYS.tekuisOriginal, JSON.stringify(fcObj)); } catch {}
+}
+
+function hasOriginalTekuis(){
+  try { return !!localStorage.getItem(LS_KEYS.tekuisOriginal); } catch { return false; }
+}
+
+function getOriginalTekuis(){
+  try {
+    const raw = localStorage.getItem(LS_KEYS.tekuisOriginal);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearOriginalTekuis(){
+  try { localStorage.removeItem(LS_KEYS.tekuisOriginal); } catch {}
+}
+
+
 function loadTekuisFromLS(){
   try{
     const raw = localStorage.getItem(LS_KEYS.tekuis);
@@ -87,6 +111,10 @@ return {
   getVisFlag,
   hasTekuisCache,
   clearTekuisCache,
+  saveOriginalTekuis,
+  hasOriginalTekuis,
+  getOriginalTekuis,
+  clearOriginalTekuis,
   saveTekuisToLS,
   loadTekuisFromLS
   };

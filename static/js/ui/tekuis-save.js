@@ -25,6 +25,12 @@ function setupTekuisSave({ tekuisSource, ticket } = {}){
       dataProjection: 'EPSG:4326'
     });
 
+    const originalFc = window.tekuisCache?.getOriginalTekuis?.();
+    if (!originalFc || originalFc.type !== 'FeatureCollection' || !Array.isArray(originalFc.features)) {
+      window.showToast?.('Köhnə TEKUİS məlumatı tapılmadı. Zəhmət olmasa canlı məlumatı yeniləyin.');
+      return;
+    }
+
     if (fc.features.length === 1) {
       const t = fc.features[0]?.geometry?.type || '';
       if (t === 'Polygon' || t === 'MultiPolygon'){
@@ -58,7 +64,7 @@ function setupTekuisSave({ tekuisSource, ticket } = {}){
           'X-Ticket': ticket,
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ ticket, geojson: fc })
+        body: JSON.stringify({ ticket, geojson: fc, original_geojson: originalFc })
       });
 
       if (resp.status === 409) {
