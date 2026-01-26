@@ -93,12 +93,12 @@ window.TekuisNecas.create = function createTekuisNecas({
           ? window.TekuisSwitch.getMode()
           : 'live';
 
-        const defaultText =
-          (mode === 'db')
-            ? (window.TEXT_TEKUIS_DB_DEFAULT || 'Tədqiqat nəticəsində dəyişiklik eilərək saxlanılan TEKUİS parselləri')
-            : (window.TEXT_TEKUIS_DEFAULT    || 'TEKUİS sisteminin parsel məlumatları.');
+        const isDbMode = mode === 'current' || mode === 'old';
+        const defaultText = isDbMode
+          ? (window.TEXT_TEKUIS_DB_DEFAULT || 'tədqiqat nəticəsində dəyişiklik edilərək saxlanılan TEKUİS parselləri')
+          : (window.TEXT_TEKUIS_DEFAULT    || 'TEKUİS sisteminin parsel məlumatları.');
 
-        const suffix = (mode === 'db') ? ' (Mənbə: Local baza)' : ' (Mənbə: TEKUİS – canlı)';
+        const suffix = isDbMode ? ' (Mənbə: Local baza)' : ' (Mənbə: TEKUİS – canlı)';
 
         safeApplyNoDataCardState(
           'cardTekuis',
@@ -128,6 +128,8 @@ window.TekuisNecas.create = function createTekuisNecas({
     const extent3857 = layer.getSource().getExtent?.();
     if (!isFiniteExtent(extent3857)) return;
 
+    window.TekuisSwitch?.setMode?.('live');
+
     const [minx, miny, maxx, maxy] =
       ol.proj.transformExtent(extent3857, 'EPSG:3857', 'EPSG:4326');
 
@@ -142,6 +144,7 @@ window.TekuisNecas.create = function createTekuisNecas({
   async function fetchTekuisByAttachTicket(){
     const pageTicket = getPageTicketSafe();
     if (!pageTicket) return;
+    window.TekuisSwitch?.setMode?.('live');
     try{
       const resp = await fetch(`/api/tekuis/parcels/by-attach-ticket/?ticket=${encodeURIComponent(pageTicket)}`, {
         headers: { 'Accept':'application/json' }
@@ -177,6 +180,7 @@ window.TekuisNecas.create = function createTekuisNecas({
       // Heç nə formalaşmadısa — son çarə BBOX
       return fetchTekuisByBboxForLayer(layer);
     }
+    window.TekuisSwitch?.setMode?.('live');
     return fetch('/api/tekuis/parcels/by-geom/', {
       method: 'POST',
       headers: { 'Content-Type':'application/json', 'Accept':'application/json' },

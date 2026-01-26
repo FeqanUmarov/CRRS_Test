@@ -85,6 +85,42 @@ function setupLayersPanel({
     }
   }
 
+  async function tekuisExistsForTicket(ticket){
+    if (!ticket) return false;
+    try {
+      const resp = await fetch(`/api/tekuis/exists?ticket=${encodeURIComponent(ticket)}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      return !!data?.exists;
+    } catch (e) {
+      console.warn('TEKUİS exists check failed:', e);
+      return false;
+    }
+  }
+
+  async function loadSavedTekuisFromDbIfExists(){
+    if (!pageTicket || window.tekuisCache?.hasTekuisCache?.()) return false;
+    if (!window.TekuisSwitch?.showSource) return false;
+
+    const exists = await tekuisExistsForTicket(pageTicket);
+    if (!exists) return false;
+
+    await window.TekuisSwitch.showSource('current');
+
+    setVisFlag?.('tekuis', true);
+    const chkTekuis = document.getElementById('chkTekuisLayer');
+    if (chkTekuis) chkTekuis.checked = true;
+
+    const tekuisLayer = getTekuisLayer?.();
+    const tekuisSource = getTekuisSource?.();
+    const count = tekuisSource?.getFeatures?.().length ?? 0;
+    tekuisLayer?.setVisible(count > 0);
+    return true;
+  }
+
+
   function renderLayersPanel(){
     const canDelete = (window.CURRENT_STATUS_ID === 2 || window.CURRENT_STATUS_ID === 99);
 
@@ -333,12 +369,13 @@ function setupLayersPanel({
       if (attachLayer) attachLayer.setVisible(chkAttach.checked);
 
       const currentAttachCount = getAttachLayerCount?.() ?? 0;
+      const tekuisLoadedFromDb = await loadSavedTekuisFromDbIfExists();
       if (currentAttachCount > 0) {
-        await Promise.all([
-          refreshTekuisFromAttachIfAny?.(),
-          refreshNecasFromAttachIfAny?.()
-        ]);
-      } else {
+        if (!tekuisLoadedFromDb) {
+          await refreshTekuisFromAttachIfAny?.();
+        }
+        await refreshNecasFromAttachIfAny?.();
+      } else if (!tekuisLoadedFromDb) {
         getTekuisSource?.()?.clear(true);
         getNecasSource?.()?.clear(true);
         setTekuisCount?.(0);
