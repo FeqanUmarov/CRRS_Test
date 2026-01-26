@@ -4,6 +4,40 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.db import connection
 from django.views.decorators.http import require_GET
 
+TEKUIS_DB_SELECT_COLUMNS = (
+    ("tekuis_id", "id"),
+    ("kateqoriya", "LAND_CATEGORY_ENUM"),
+    ("uqodiya", "LAND_CATEGORY2ENUM"),
+    ("alt_kateqoriya", "LAND_CATEGORY3ENUM"),
+    ("alt_uqodiya", "LAND_CATEGORY4ENUM"),
+    ("mulkiyyet", "OWNER_TYPE_ENUM"),
+    ("suvarma", "SUVARILMA_NOVU_ENUM"),
+    ("emlak_novu", "EMLAK_NOVU_ENUM"),
+    ("islahat_uqodiyasi", "OLD_LAND_CATEGORY2ENUM"),
+    ("rayon_adi", "RAYON_ADI"),
+    ("ied_adi", "IED_ADI"),
+    ("belediyye_adi", "BELEDIYE_ADI"),
+    ("sahe_ha", "AREA_HA"),
+    ("qeyd", "NAME"),
+    ("meta_id", None),
+)
+
+
+def _build_tekuis_select_sql():
+    column_sql = ",\n            ".join(
+        f'{col} AS "{alias}"' if alias else col for col, alias in TEKUIS_DB_SELECT_COLUMNS
+    )
+    return f"""
+        SELECT
+            {column_sql},
+            ST_AsGeoJSON(geom, 7) AS geom_geojson
+        FROM tekuis_parcel
+        WHERE meta_id = %s
+          AND status = 1
+    """
+
+
+
 @require_GET
 def tekuis_parcels_by_db(request):
     """
@@ -27,40 +61,7 @@ def tekuis_parcels_by_db(request):
     except ValueError:
         return HttpResponseBadRequest("meta_id rəqəm olmalıdır.")
 
-    # Sütun adlarını alias edirik ki, main.js-dəki TEKUİS panel etiketi ilə uyğun gəlsin:
-    #  Kateqoriya      -> LAND_CATEGORY_ENUM
-    #  Uqodiya         -> LAND_CATEGORY2ENUM
-    #  Mulkiyyet       -> OWNER_TYPE_ENUM
-    #  Suvarma         -> SUVARILMA_NOVU_ENUM
-    #  Emlak_novu      -> EMLAK_NOVU_ENUM
-    #  Islahat_uqodiyasi -> OLD_LAND_CATEGORY2ENUM
-    #  Rayon_adi       -> RAYON_ADI
-    #  IED_adi         -> IED_ADI
-    #  Belediyye_adi   -> BELEDIYE_ADI
-    #  Sahe_ha         -> AREA_HA
-    #  Qeyd            -> NAME
-
-    sql = """
-        SELECT
-            tekuis_id                         AS id,
-            ST_AsGeoJSON(geom, 7)            AS geom_geojson,
-            Kateqoriya                       AS "LAND_CATEGORY_ENUM",
-            Uqodiya                          AS "LAND_CATEGORY2ENUM",
-            Mulkiyyet                        AS "OWNER_TYPE_ENUM",
-            Suvarma                          AS "SUVARILMA_NOVU_ENUM",
-            Emlak_novu                       AS "EMLAK_NOVU_ENUM",
-            Islahat_uqodiyasi                AS "OLD_LAND_CATEGORY2ENUM",
-            Rayon_adi                        AS "RAYON_ADI",
-            IED_adi                          AS "IED_ADI",
-            Belediyye_adi                    AS "BELEDIYE_ADI",
-            Sahe_ha                          AS "AREA_HA",
-            Qeyd                             AS "NAME",
-            meta_id
-        FROM tekuis_parcel
-        WHERE meta_id = %s
-          AND status = 1
-    """
-
+    sql = _build_tekuis_select_sql()
     features = []
     with connection.cursor() as cur:
         cur.execute(sql, [meta_id_int])
