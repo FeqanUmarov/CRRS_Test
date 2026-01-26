@@ -314,6 +314,98 @@ window.MainEditing.init = function initEditing(state = {}) {
   function hasAtLeastOnePolygonSelected(){
     return getSelectedPolygons().length >= 1;
   }
+  function cloneFeatureAttributes(feature) {
+    const props = { ...(feature?.getProperties?.() || {}) };
+    delete props.geometry;
+    return props;
+  }
+
+  function explodeSelectedMultiPolygons(){
+    const unified = getUnifiedSelectedFeatures();
+    if (unified.length === 0) {
+      Swal.fire('Info', 'Seçilmiş obyekt yoxdur.', 'info');
+      return;
+    }
+
+    let explodedCount = 0;
+    let createdCount = 0;
+    let skippedSingle = 0;
+    let skippedNoSource = 0;
+
+    const selectAnyFeatures = selectAny.getFeatures();
+    const selectInteractionFeatures = selectInteraction.getFeatures();
+
+    unified.forEach(feature => {
+      const geom = feature?.getGeometry?.();
+      if (!geom || geom.getType() !== 'MultiPolygon') return;
+
+      const parts = geom.getCoordinates();
+      if (!Array.isArray(parts) || parts.length < 2) {
+        skippedSingle += 1;
+        return;
+      }
+
+      const hit = findVectorLayerAndSourceOfFeature(feature);
+      if (!hit || !hit.source) {
+        skippedNoSource += 1;
+        return;
+      }
+
+      const wasInSelectAny = selectAnyFeatures.getArray().includes(feature);
+      const wasInSelectInteraction = selectInteractionFeatures.getArray().includes(feature);
+
+      const baseProps = cloneFeatureAttributes(feature);
+
+      try { hit.source.removeFeature(feature); } catch {}
+      if (wasInSelectAny) { try { selectAnyFeatures.remove(feature); } catch {} }
+      if (wasInSelectInteraction) { try { selectInteractionFeatures.remove(feature); } catch {} }
+
+      const newFeatures = parts.map(partCoords => {
+        const nf = new ol.Feature({ ...baseProps });
+        nf.setGeometry(new ol.geom.Polygon(partCoords));
+        hit.source.addFeature(nf);
+        return nf;
+      });
+
+      if (wasInSelectAny) {
+        newFeatures.forEach(f => selectAnyFeatures.push(f));
+      }
+      if (wasInSelectInteraction) {
+        newFeatures.forEach(f => selectInteractionFeatures.push(f));
+      }
+
+      explodedCount += 1;
+      createdCount += newFeatures.length;
+    });
+
+    if (explodedCount === 0) {
+      Swal.fire(
+        'Info',
+        'Explode üçün ən azı 1 multipart (MultiPolygon) seçilməlidir.',
+        'info'
+      );
+      return;
+    }
+
+    try { window.saveTekuisToLS?.(); } catch {}
+    updateDeleteButtonState();
+    updateAllSaveButtons();
+
+    const noteParts = [];
+    if (skippedSingle) noteParts.push(`${skippedSingle} ədəd tək hissəli poliqon atlandı`);
+    if (skippedNoSource) noteParts.push(`${skippedNoSource} ədəd mənbəsiz obyekt atlandı`);
+    const noteText = noteParts.length ? ` (${noteParts.join(', ')})` : '';
+
+    if (window.showToast) {
+      window.showToast(`Explode: ${explodedCount} multipart → ${createdCount} poliqon${noteText}`, 2600);
+    } else {
+      Swal.fire(
+        'Uğurlu',
+        `Explode tamamlandı: ${explodedCount} multipart → ${createdCount} poliqon${noteText}`,
+        'success'
+      );
+    }
+  }
 
   function updateAllSaveButtons(){
     const hasPoly = hasAtLeastOnePolygonSelected();
@@ -520,6 +612,7 @@ window.MainEditing.init = function initEditing(state = {}) {
     btnDraw:   null,
     btnSnap:   null,
     btnDelete: null,
+    btnExplode: null,
     btnClear:  null,
     btnSave:   null
   };
@@ -558,6 +651,7 @@ window.MainEditing.init = function initEditing(state = {}) {
     rtEditUI.btnDraw   = mkBtn('rtDraw',      'Poliqon çək / dayandır',       'draw');
     rtEditUI.btnSnap   = mkBtn('rtSnap',      'Snap aç/bağla',                'snap');
     rtEditUI.btnDelete = mkBtn('rtDeleteSel', 'Seçiləni sil',                 'deleteSel');
+    rtEditUI.btnExplode = mkBtn('rtExplode',  'Multipart poliqonu parçala',  'explode');
     rtEditUI.btnClear  = mkBtn('rtClearAll',  'Hamısını sil',                 'clearAll');
     rtEditUI.btnSave   = mkBtn('rtSave',      'Yadda saxla',                  'save');
     rtEditUI.btnErase  = mkBtn('rtErase',     'Tədqiqat daxilini kəs & sil',  'erase');
@@ -631,6 +725,12 @@ window.MainEditing.init = function initEditing(state = {}) {
       } else {
         Swal.fire('Info', 'Seçilənlər arasında silinə bilən obyekt yoxdur.', 'info');
       }
+    });
+
+        // 5.5) Explode düyməsi — Multipart poliqonu parçala
+    rtEditUI.btnExplode.addEventListener('click', () => {
+      if (!ensureEditAllowed()) return;
+      explodeSelectedMultiPolygons();
     });
 
 
