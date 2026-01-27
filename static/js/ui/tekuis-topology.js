@@ -801,6 +801,7 @@ async function tryValidateAndSaveTekuis(){
 
     closeTopologyModal();
     clearTekuisCache();
+    window.tekuisNecasApi?.markTekuisSaved?.(true);
     
     // State təmizlə
     window._ignoredTopo = { overlaps: new Set(), gaps: new Set() };

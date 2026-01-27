@@ -264,6 +264,7 @@ window.MainLayers.init = function initLayers(state = {}) {
   });
 
   if (tekuisNecasApi) {
+    window.tekuisNecasApi = tekuisNecasApi;
     ({
       fetchTekuisByBboxForLayer: state.fetchTekuisByBboxForLayer,
       fetchTekuisByAttachTicket: state.fetchTekuisByAttachTicket,

@@ -107,7 +107,7 @@ function setupLayersPanel({
     const exists = await tekuisExistsForTicket(pageTicket);
     if (!exists) return false;
 
-    await window.TekuisSwitch.showSource('current');
+    window.tekuisNecasApi?.markTekuisSaved?.(true);
 
     setVisFlag?.('tekuis', true);
     const chkTekuis = document.getElementById('chkTekuisLayer');
