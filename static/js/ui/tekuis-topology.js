@@ -591,6 +591,19 @@ function isValidFeatureCollection(fc){
   return !!fc && fc.type === 'FeatureCollection' && Array.isArray(fc.features);
 }
 
+function resolveOriginalTekuis({ fallbackFc } = {}){
+  const cached = window.tekuisCache?.getOriginalTekuis?.();
+  if (isValidFeatureCollection(cached)) {
+    return cached;
+  }
+  if (isValidFeatureCollection(fallbackFc) && (fallbackFc.features?.length ?? 0) > 0) {
+    window.tekuisCache?.saveOriginalTekuis?.(fallbackFc);
+    return fallbackFc;
+  }
+  return null;
+}
+
+
 
 
 // --- Serverdə yadda saxla ---------------------------------------------------
@@ -603,7 +616,7 @@ async function saveTekuisOnServer(featureCollection, { ignored, skipValidation, 
   const metaRaw = (typeof window.META_ID !== 'undefined') ? window.META_ID : null;
   const metaInt = metaRaw != null && String(metaRaw).trim() !== '' ? parseInt(metaRaw, 10) : null;
 
-  const originalFc = originalGeojson || window.tekuisCache?.getOriginalTekuis?.();
+  const originalFc = resolveOriginalTekuis({ fallbackFc: originalGeojson });
   if (!isValidFeatureCollection(originalFc)) {
     return {
       ok: false,
@@ -713,12 +726,6 @@ async function tryValidateAndSaveTekuis(){
     return;
   }
 
-  const originalFc = window.tekuisCache?.getOriginalTekuis?.();
-  if (!isValidFeatureCollection(originalFc)) {
-    Swal.fire('Xəta', 'Köhnə TEKUİS məlumatı tapılmadı. Zəhmət olmasa tekuis_parcel_old məlumatını yeniləyin.', 'error');
-    return;
-  }
-
 
   const src = getTekuisSourceSmart();
   const feats = src?.getFeatures?.() || [];
@@ -727,7 +734,14 @@ async function tryValidateAndSaveTekuis(){
     return;
   }
 
-  const fc = getTekuisFeatureCollection();
+  const currentFc = getTekuisFeatureCollection();
+  const originalFc = resolveOriginalTekuis({ fallbackFc: currentFc });
+  if (!isValidFeatureCollection(originalFc)) {
+    Swal.fire('Xəta', 'Köhnə TEKUİS məlumatı tapılmadı. Zəhmət olmasa tekuis_parcel_old məlumatını yeniləyin.', 'error');
+    return;
+  }
+
+  const fc = currentFc;
   const curHash = fcHash(fc);
 
   let validationResult = null;
